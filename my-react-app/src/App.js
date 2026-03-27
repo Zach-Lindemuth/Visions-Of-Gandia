@@ -1,26 +1,49 @@
-import logo from './logo.svg';
 import './App.css';
-import {CounterComponent} from './CounterComponent.tsx';
+import Home from './views/Home';
+import Login from './views/Login';
+import Register from './views/Register';
+import CreateCharacter from './views/CreateCharacter';
+import PendingApproval from './views/PendingApproval';
+
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './auth/AuthContext';
+import RequireAuth from './auth/RequireAuth';
+import { ThemeProvider } from './theme/ThemeContext';
+import AppLayout from "./layouts/AppLayout";
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-        <CounterComponent />
-      </header>
-    </div>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/pending-approval" element={<PendingApproval />} />
+            <Route
+              path="/"
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <Home />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/characters/new"
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <CreateCharacter />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
