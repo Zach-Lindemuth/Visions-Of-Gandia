@@ -180,14 +180,10 @@ export default function Step6Equipment({ data, update, next, back }) {
         Choose <strong>2 weapons</strong> and <strong>1 armor</strong> to start with.
       </p>
 
-      {allDone && (
-        <button className="talent-confirm-btn" onClick={next}>Confirm Equipment →</button>
-      )}
-
       {loading ? (
         <p className="muted">Loading equipment types...</p>
       ) : (
-        <>
+        <div className="equip-columns">
           {/* ── Weapons ── */}
           <div className="equip-section">
             <h3>Weapons</h3>
@@ -274,11 +270,14 @@ export default function Step6Equipment({ data, update, next, back }) {
               </div>
             ) : null}
           </div>
-        </>
+        </div>
       )}
 
       <div className="wizard-nav">
         <button className="btn-secondary" onClick={back}>← Back</button>
+        {allDone && (
+          <button className="wizard-confirm-btn" onClick={tryNext}>Confirm Equipment →</button>
+        )}
         <button onClick={tryNext}>Next →</button>
       </div>
     </div>

@@ -170,6 +170,7 @@ export default function Step2OriginVision({ data, update, next, back }) {
     setProfConfirmed(true);
     const desc = confirmedDesc ? confirmedDesc.descriptor : confirmedCustomDesc;
     update({ descriptor: desc, profession: prof });
+    next();
   };
 
   const changeProfession = () => {
@@ -201,10 +202,9 @@ export default function Step2OriginVision({ data, update, next, back }) {
 
   return (
     <div className="wizard-step">
-      <h2>Origin &amp; Vision</h2>
+      <h2>Origin</h2>
       <p className="wizard-hint">
         Your <strong>Origin</strong> describes who you were before adventuring.
-        Your <strong>Vision</strong> is what drives you.
       </p>
 
       {/* ══ DESCRIPTOR ══════════════════════════════════════════════════════ */}
@@ -388,7 +388,7 @@ export default function Step2OriginVision({ data, update, next, back }) {
         <button className="btn-secondary" onClick={back}>
           ← Back
         </button>
-        <button onClick={next}>Next →</button>
+        <button onClick={next} disabled={!descConfirmed || !profConfirmed}>Next →</button>
       </div>
 
       {/* ══ PROFESSION CHOICE MODAL ══════════════════════════════════════════ */}

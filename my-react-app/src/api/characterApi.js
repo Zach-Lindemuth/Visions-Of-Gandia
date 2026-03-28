@@ -49,6 +49,15 @@ export async function deleteCharacter(token, characterId) {
   return handleResponse(res);
 }
 
+export async function updateCharacter(token, characterId, data) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
 // ── Reference data ───────────────────────────────────────
 export async function getTalents(token) {
   const res = await fetch(`${API_BASE}/talents`, { headers: authHeaders(token) });
@@ -127,6 +136,31 @@ export async function addVisionToCharacter(token, characterId, visionId) {
   return handleResponse(res);
 }
 
+// ── Remove associations ─────────────────────────────────
+export async function removeTalentFromCharacter(token, characterId, talentId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/talents/${talentId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function removeArcanaFromCharacter(token, characterId, arcanaId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/arcana/${arcanaId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function removeTechniqueFromCharacter(token, characterId, techniqueId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/techniques/${techniqueId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
 // ── Equipment ────────────────────────────────────────────
 export async function createWeapon(token, characterId, data) {
   const res = await fetch(`${API_BASE}/characters/${characterId}/weapons`, {
@@ -155,6 +189,23 @@ export async function getCharacterEquipment(token, characterId) {
 
 export async function getCharacterInventory(token, characterId) {
   const res = await fetch(`${API_BASE}/characters/${characterId}/inventory`, {
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function updateInventorySlot(token, characterId, slotIndex, data) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/inventory/${slotIndex}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function clearInventorySlot(token, characterId, slotIndex) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/inventory/${slotIndex}`, {
+    method: "DELETE",
     headers: authHeaders(token),
   });
   return handleResponse(res);

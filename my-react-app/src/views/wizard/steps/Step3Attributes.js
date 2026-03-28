@@ -126,6 +126,9 @@ export default function Step3Attributes({ data, update, next, back }) {
 
       <div className="wizard-nav">
         <button className="btn-secondary" onClick={back}>← Back</button>
+        {remaining === 0 && (
+          <button className="wizard-confirm-btn" onClick={next}>Confirm Attributes →</button>
+        )}
         <button onClick={tryNext}>Next →</button>
       </div>
     </div>

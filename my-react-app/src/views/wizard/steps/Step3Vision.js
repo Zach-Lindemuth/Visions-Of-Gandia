@@ -72,6 +72,7 @@ export default function Step3Vision({ data, update, next, back }) {
     setConfirmedVision(selectedVision);
     setVisionConfirmed(true);
     update({ visionId: selectedVision ? selectedVision.visionId : null });
+    next();
   };
 
   const changeVision = () => {
@@ -173,7 +174,7 @@ export default function Step3Vision({ data, update, next, back }) {
         <button className="btn-secondary" onClick={back}>
           ← Back
         </button>
-        <button onClick={next}>Next →</button>
+        <button onClick={next} disabled={selectedVision && !visionConfirmed}>Next →</button>
       </div>
     </div>
   );
