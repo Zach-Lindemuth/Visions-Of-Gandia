@@ -1,33 +1,31 @@
-const API_BASE = "https://localhost:7175/api"; // change as needed
+const API_BASE = "https://localhost:7175/api";
 
 export async function loginUser(username, password) {
   const response = await fetch(`${API_BASE}/authentication/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, password }),
+    credentials: "include",
   });
 
   if (!response.ok) {
     let message = "Invalid username or password";
-    
     if (response.status === 403) {
       message = "Account pending approval";
     }
-
     const error = new Error(message);
     error.status = response.status;
     throw error;
   }
 
-  return response.json(); 
-  // expected: { userId, role, token }
+  return response.json();
 }
 
 export async function registerUser(username, password, email) {
   const response = await fetch(`${API_BASE}/authentication/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password, email })
+    body: JSON.stringify({ username, password, email }),
   });
 
   if (response.status === 400) {
@@ -41,6 +39,26 @@ export async function registerUser(username, password, email) {
     error.status = response.status;
     throw error;
   }
+}
 
-  return;
+export async function refreshToken() {
+  const response = await fetch(`${API_BASE}/authentication/refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const error = new Error("Session expired");
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json(); // { token, tokenExpiresAt, userId, username, roleName }
+}
+
+export async function logoutUser() {
+  await fetch(`${API_BASE}/authentication/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
 }

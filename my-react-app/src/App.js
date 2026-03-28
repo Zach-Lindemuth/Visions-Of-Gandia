@@ -3,6 +3,7 @@ import Home from './views/Home';
 import Login from './views/Login';
 import Register from './views/Register';
 import CreateCharacter from './views/CreateCharacter';
+import CharacterSheet from './views/CharacterSheet';
 import PendingApproval from './views/PendingApproval';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
@@ -36,6 +37,16 @@ function App() {
                 <RequireAuth>
                   <AppLayout>
                     <CreateCharacter />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/characters/:id"
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <CharacterSheet />
                   </AppLayout>
                 </RequireAuth>
               }

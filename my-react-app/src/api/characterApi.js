@@ -1,0 +1,161 @@
+const API_BASE = "https://localhost:7175/api";
+
+function authHeaders(token) {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+async function handleResponse(res) {
+  if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    }
+    const text = await res.text();
+    const error = new Error(text || `HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// ── Characters ──────────────────────────────────────────
+export async function getCharacters(token) {
+  const res = await fetch(`${API_BASE}/characters/summaries`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function getCharacterById(token, characterId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function createCharacter(token, data) {
+  const res = await fetch(`${API_BASE}/characters/create`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteCharacter(token, characterId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+// ── Reference data ───────────────────────────────────────
+export async function getTalents(token) {
+  const res = await fetch(`${API_BASE}/talents`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function getArcana(token) {
+  const res = await fetch(`${API_BASE}/arcana`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function getTechniques(token) {
+  const res = await fetch(`${API_BASE}/techniques`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function getOrigins(token) {
+  const res = await fetch(`${API_BASE}/origins`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function getVisions(token) {
+  const res = await fetch(`${API_BASE}/visions`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function getWeaponTypes(token) {
+  const res = await fetch(`${API_BASE}/equipment-types/weapons`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+export async function getArmorTypes(token) {
+  const res = await fetch(`${API_BASE}/equipment-types/armor`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
+// ── Character associations ───────────────────────────────
+export async function addTalentToCharacter(token, characterId, talentId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/talents/${talentId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function addArcanaToCharacter(token, characterId, arcanaId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/arcana/${arcanaId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function addTechniqueToCharacter(token, characterId, techniqueId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/techniques/${techniqueId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function setCharacterOrigin(token, characterId, { descriptor, profession }) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/origin`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ descriptor, profession }),
+  });
+  return handleResponse(res);
+}
+
+export async function addVisionToCharacter(token, characterId, visionId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/visions/${visionId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+// ── Equipment ────────────────────────────────────────────
+export async function createWeapon(token, characterId, data) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/weapons`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function createArmor(token, characterId, data) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/armor`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function getCharacterEquipment(token, characterId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/equipment`, {
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function getCharacterInventory(token, characterId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/inventory`, {
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
