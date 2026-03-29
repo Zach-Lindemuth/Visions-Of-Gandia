@@ -18,6 +18,9 @@ import {
   addTechniqueToCharacter,
   createWeapon,
   createArmor,
+  equipMainHand,
+  equipArmor,
+  updateInventorySlot,
 } from "../../api/characterApi";
 
 const STEPS = ["Basics", "Origin", "Vision", "Attributes", "Talents", "Powers", "Equipment", "Review"];
@@ -36,6 +39,7 @@ const INITIAL = {
   weapons: [],
   armorTypeId: null,
   armorName: "",
+  armorQualityIds: [],
 };
 
 export default function CreateCharacterWizard() {
@@ -80,18 +84,39 @@ export default function CreateCharacterWizard() {
       for (const id of data.talentIds) await addTalentToCharacter(auth.token, charId, id);
       for (const id of data.arcanaIds) await addArcanaToCharacter(auth.token, charId, id);
       for (const id of data.techniqueIds) await addTechniqueToCharacter(auth.token, charId, id);
+      // Create weapons with qualities
+      const createdWeapons = [];
       for (const w of data.weapons) {
-        await createWeapon(auth.token, charId, {
+        const weapon = await createWeapon(auth.token, charId, {
           name: w.name,
           description: "",
           weaponTypeId: w.weaponTypeId,
+          qualityIds: w.qualityIds?.length > 0 ? w.qualityIds : null,
         });
+        createdWeapons.push(weapon);
       }
+
+      // Create armor with qualities
+      let createdArmor = null;
       if (data.armorTypeId) {
-        await createArmor(auth.token, charId, {
+        createdArmor = await createArmor(auth.token, charId, {
           name: data.armorName || "Armor",
           description: "",
           armorTypeId: data.armorTypeId,
+          qualityIds: data.armorQualityIds?.length > 0 ? data.armorQualityIds : null,
+        });
+      }
+
+      // Auto-equip: first weapon → main hand, armor → armor slot, second weapon → inventory slot 1
+      if (createdWeapons[0]) {
+        await equipMainHand(auth.token, charId, createdWeapons[0].weaponInstanceId);
+      }
+      if (createdArmor) {
+        await equipArmor(auth.token, charId, createdArmor.armorInstanceId);
+      }
+      if (createdWeapons[1]) {
+        await updateInventorySlot(auth.token, charId, 1, {
+          weaponInstanceId: createdWeapons[1].weaponInstanceId,
         });
       }
 

@@ -3,7 +3,7 @@ import { useAuth } from "../auth/AuthContext";
 import ThemeToggle from "./ThemeToggle";
 
 export default function NavBar() {
-  const { logout } = useAuth();
+  const { auth, logout } = useAuth();
   const navigate = useNavigate();
 
   function handleLogout() {
@@ -14,12 +14,17 @@ export default function NavBar() {
   return (
     <nav className="navbar">
       <div className="nav-left">
-        <Link to="/" className="nav-brand">
+        <Link to={auth?.roleName === "Admin" ? "/admin" : "/"} className="nav-brand">
           Visions of Gandia
         </Link>
       </div>
 
       <div className="nav-right">
+        {auth?.roleName === "Admin" && (
+          <Link to="/admin" className="nav-link">
+            Admin Portal
+          </Link>
+        )}
         <ThemeToggle />
         <button className="nav-button" onClick={handleLogout}>
           Logout

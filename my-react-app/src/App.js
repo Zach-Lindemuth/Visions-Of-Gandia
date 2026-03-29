@@ -5,10 +5,12 @@ import Register from './views/Register';
 import CreateCharacter from './views/CreateCharacter';
 import CharacterSheet from './views/CharacterSheet';
 import PendingApproval from './views/PendingApproval';
+import AdminPortal from './views/AdminPortal';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
+import RequireAdmin from './auth/RequireAdmin';
 import { ThemeProvider } from './theme/ThemeContext';
 import AppLayout from "./layouts/AppLayout";
 
@@ -49,6 +51,16 @@ function App() {
                     <CharacterSheet />
                   </AppLayout>
                 </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <RequireAdmin>
+                  <AppLayout>
+                    <AdminPortal />
+                  </AppLayout>
+                </RequireAdmin>
               }
             />
           </Routes>

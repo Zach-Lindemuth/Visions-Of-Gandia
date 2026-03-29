@@ -301,7 +301,7 @@ a:hover {
    App Layout
    ================================ */
 .app-content {
-  padding: 3rem;
+  padding: 2rem 1rem;
   min-height: calc(100vh - 76px);
 }
 
@@ -865,6 +865,11 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
   margin-bottom: 1.5rem;
   align-items: stretch;
 }
+@media (max-width: 540px) {
+  .attr-allocator-columns {
+    grid-template-columns: 1fr;
+  }
+}
 .attr-alloc-row {
   display: flex;
   align-items: center;
@@ -965,6 +970,108 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
   flex-shrink: 0;
 }
 .equip-remove-btn:hover { background: transparent; color: var(--error-color); }
+
+/* ── Equipment quality row ── */
+.equip-quality-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+.equip-quality-badges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.equip-quality-badge {
+  display: inline-block;
+  background: var(--selected-bg);
+  border: 1px solid var(--selected-border);
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-color);
+}
+.equip-add-quality-btn {
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.78rem;
+  color: var(--muted-text);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  width: auto;
+}
+.equip-add-quality-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: transparent;
+}
+
+/* ── Quality picker card styling ── */
+.quality-picker-card-inner { width: 100%; }
+.quality-picker-card-inner.quality-selected {
+  border-left: 3px solid var(--primary-color);
+  padding-left: 0.5rem;
+}
+.quality-picker-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.quality-check-mark {
+  color: var(--primary-color);
+  font-size: 1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.quality-tag-row {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+.quality-tag-chip {
+  display: inline-block;
+  background: var(--border-color);
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
+  color: var(--muted-text);
+}
+
+/* ── Tag filter bar in quality picker modal ── */
+.quality-tag-filter-bar {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0 0 0.75rem;
+  flex-shrink: 0;
+}
+.quality-tag-filter-btn {
+  background: var(--card-bg, var(--panel-color));
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--muted-text);
+  cursor: pointer;
+  transition: all 0.12s;
+  width: auto;
+}
+.quality-tag-filter-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--card-bg, var(--panel-color));
+}
+.quality-tag-filter-btn.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+
 .selected-list { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
 .selected-item { display: flex; gap: 0.5rem; align-items: center; }
 .selected-item input { flex: 1; }
@@ -1080,6 +1187,458 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
 .review-equip-item:last-child { margin-bottom: 0; }
 .review-equip-item strong { font-size: 0.95rem; }
 
+/* Equipment quality badges on the character sheet (inventory + legacy) */
+.equip-sheet-qualities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+.equip-sheet-quality-badge {
+  display: inline-block;
+  background: var(--selected-bg);
+  border: 1px solid var(--selected-border);
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-color);
+}
+
+/* Fix slot-remove button inside quality cards (overrides global button styles) */
+.equip-sheet-quality-card .slot-remove {
+  width: auto;
+  margin-top: 0;
+  padding: 0.1rem 0.4rem;
+  background: transparent;
+  color: var(--muted-text);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.1s;
+}
+.equip-sheet-quality-card .slot-remove:hover { color: var(--error-color); }
+.equip-sheet-quality-card .slot-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Equipment quality detail cards (on character sheet equipment slots) */
+.equip-sheet-quality-section {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.equip-sheet-quality-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.equip-sheet-quality-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--selected-border);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.65rem;
+}
+.equip-sheet-quality-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.equip-sheet-quality-card-header strong {
+  font-size: 0.9rem;
+}
+.equip-sheet-quality-desc {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted-text);
+  line-height: 1.4;
+}
+
+/* Draggable item name in equipment panels */
+.equip-name-draggable {
+  cursor: grab;
+  border-radius: var(--radius);
+  transition: background 0.12s;
+}
+.equip-name-draggable:hover { background: var(--card-bg); }
+.equip-name-draggable:active { cursor: grabbing; }
+
+/* Equipment panel drag/drop states */
+.equip-drop-panel { transition: outline 0.1s, background 0.1s; }
+.equip-drop-valid { outline: 2px dashed var(--selected-border); }
+.equip-drop-over { outline: 2px solid var(--primary-color) !important; background: var(--selected-bg); }
+.equip-dragging { opacity: 0.45; }
+
+/* Inventory panel header with unlock button */
+.inv-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.inv-panel-header h3 { margin: 0; }
+.inv-unlock-btn,
+.inv-lock-btn {
+  width: auto;
+  margin-top: 0;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.inv-unlock-btn {
+  background: transparent;
+  color: var(--muted-text);
+}
+.inv-unlock-btn:hover { background: var(--card-bg); color: var(--text-color); }
+.inv-lock-btn {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+.inv-lock-btn:hover { background: var(--primary-hover); }
+.inv-lock-btn:disabled,
+.inv-unlock-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Inventory slot drag/drop states */
+.inv-slot-unlocked { cursor: grab; }
+.inv-slot-unlocked:active { cursor: grabbing; }
+.inv-slot-dragging { opacity: 0.4; }
+.inv-slot-drop-valid { outline: 2px dashed var(--selected-border); }
+.inv-slot-drag-over { outline: 2px solid var(--primary-color) !important; background: var(--selected-bg); }
+.inventory-unlocked .inv-slot { border-style: dashed; }
+
+/* Off-hand empty state */
+.equip-slot-empty-panel .equip-slot-placeholder {
+  font-style: italic;
+  opacity: 0.5;
+}
+
+/* Empty equipment slot click-to-create button */
+.equip-slot-empty-btn {
+  width: 100%;
+  background: transparent;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius);
+  color: var(--muted-text);
+  font-size: 0.9rem;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  margin: 0;
+}
+.equip-slot-empty-btn:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--selected-bg);
+}
+.equip-slot-empty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Equipment panel title row with delete button */
+.equip-panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.equip-panel-title-row h3 { margin: 0; }
+.equip-delete-btn {
+  background: transparent;
+  border: 1px solid var(--error-color);
+  color: var(--error-color);
+  font-size: 1rem;
+  font-weight: 400;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  width: auto;
+  margin: 0;
+  line-height: 1.4;
+  transition: background 0.12s, color 0.12s;
+}
+.equip-delete-btn:hover { background: var(--error-color); color: #fff; }
+.equip-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Inventory Item Picker Modal ─────────────────────── */
+.inv-item-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.inv-item-picker-modal {
+  background: var(--panel-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  width: min(560px, 95vw);
+  max-height: min(680px, 90vh);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  animation: slide-up 0.18s ease;
+}
+
+.inv-item-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.inv-item-picker-header h2,
+.inv-item-picker-header h3 { margin: 0; font-size: 1.2rem; font-weight: 700; }
+
+.inv-item-picker-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inv-item-picker-back {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--muted-text);
+  font-size: 0.82rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  width: auto;
+  margin: 0;
+  transition: color 0.1s, border-color 0.1s;
+}
+.inv-item-picker-back:hover { color: var(--text-color); border-color: var(--muted-text); }
+
+.inv-item-picker-close {
+  background: transparent;
+  border: none;
+  color: var(--muted-text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+  width: auto;
+  margin: 0;
+  border-radius: 4px;
+  transition: color 0.1s, background 0.1s;
+}
+.inv-item-picker-close:hover { color: var(--text-color); background: var(--card-bg); }
+
+/* Step 1: Category selection */
+.inv-item-picker-categories {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+
+.inv-item-picker-cat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.5rem 1rem;
+  background: var(--card-bg);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-color);
+  width: 100%;
+  margin: 0;
+  transition: border-color 0.12s, background 0.12s;
+}
+.inv-item-picker-cat-card:hover {
+  border-color: var(--primary-color);
+  background: var(--selected-bg);
+}
+.inv-item-picker-cat-icon { font-size: 2rem; line-height: 1; }
+.inv-item-picker-cat-label { font-size: 0.95rem; font-weight: 600; }
+
+/* Step 2: Configure */
+.inv-item-configure {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.inv-item-configure-label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-text);
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+}
+
+.inv-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.5rem;
+}
+
+.inv-type-card {
+  padding: 0.6rem 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  text-align: center;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: var(--text-color);
+  width: 100%;
+  margin: 0;
+  transition: border-color 0.12s, background 0.12s;
+}
+.inv-type-card:hover { border-color: var(--selected-border); background: var(--selected-bg); }
+.inv-type-card.selected {
+  border-color: var(--primary-color);
+  background: var(--selected-bg);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.inv-item-input {
+  width: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-color);
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  transition: border-color 0.12s;
+  box-sizing: border-box;
+}
+.inv-item-input:focus { border-color: var(--primary-color); }
+
+.inv-item-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-color);
+  font-size: 0.95rem;
+  padding: 0.6rem 0.75rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.12s;
+  box-sizing: border-box;
+}
+.inv-item-textarea:focus { border-color: var(--primary-color); }
+
+/* Qualities section inside configure step */
+.inv-item-qualities-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.inv-item-quality-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 99px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.78rem;
+  color: var(--text-color);
+}
+.inv-item-quality-remove {
+  background: transparent;
+  border: none;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: auto;
+  margin: 0;
+  transition: color 0.1s;
+}
+.inv-item-quality-remove:hover { color: var(--error-color); }
+
+.inv-item-add-quality-btn {
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  color: var(--muted-text);
+  font-size: 0.82rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 99px;
+  cursor: pointer;
+  width: auto;
+  margin: 0;
+  transition: border-color 0.12s, color 0.12s;
+}
+.inv-item-add-quality-btn:hover { border-color: var(--primary-color); color: var(--primary-color); }
+
+/* Footer */
+.inv-item-picker-footer {
+  padding: 0.85rem 1.5rem 1.25rem;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.inv-item-submit-btn {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0;
+  transition: background 0.15s;
+}
+.inv-item-submit-btn:hover { background: var(--primary-hover); }
+.inv-item-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Quality modal footer */
+.quality-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+.quality-modal-count {
+  font-size: 0.85rem;
+}
+.quality-accept-btn {
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.45rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: auto;
+}
+.quality-accept-btn:hover { background: var(--primary-hover); }
+
 /* ── Responsive: narrower viewports ──────────────────────────────────── */
 
 /* Medium width: stack review middle to single column */
@@ -1128,8 +1687,46 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
    Character Sheet
    ================================ */
 .sheet {
-  max-width: 1100px;
+  max-width: 1600px;
   margin: 0 auto;
+}
+
+/* Two-column body layout */
+.sheet-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.sheet-col-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.sheet-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: sticky;
+  top: 1.5rem;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Collapse to single column on narrower viewports */
+@media (max-width: 1100px) {
+  .sheet-body {
+    grid-template-columns: 1fr;
+  }
+  .sheet-col-right {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 .sheet-loading { padding: 2rem; }
 
@@ -1156,7 +1753,7 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 .vitals-row {
   display: flex;
@@ -1379,10 +1976,17 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
 .sheet-section { margin-bottom: 1rem; }
 .section-heading { margin: 0 0 0.75rem; font-size: 1.1rem; font-weight: 600; }
 
-/* Review-panel spacing inside the sheet */
+/* Review-panel spacing: columns use flex gap, no extra margin needed */
+.sheet-col-left > .review-panel,
+.sheet-col-left > .sheet-vitals-panel,
+.sheet-col-left > .sheet-section-row { margin-bottom: 0; }
+.sheet-col-right > .review-panel,
+.sheet-col-right > .review-equipment-boxes { margin-bottom: 0; }
+/* Legacy fallback for single-column mode */
 .sheet > .review-panel,
 .sheet > .review-equipment-boxes,
 .sheet > .sheet-section-row { margin-bottom: 0.75rem; }
+
 .sheet-section-row {
   display: flex;
   gap: 0.75rem;
@@ -1390,7 +1994,11 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
 .sheet-section-row > .review-panel { flex: 1; min-width: 0; }
 
 /* Sheet cards inside review panels */
+.sheet-col-left .review-panel .sheet-cards,
 .sheet > .review-panel > .sheet-cards { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* Equipment grid: Armor always spans full width */
+.equip-panel-armor { grid-column: 1 / -1; }
 
 /* Make review-card in sheet context interactive */
 .sheet .review-card .slot-remove {
@@ -1456,43 +2064,86 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
 
 .inventory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.55rem;
 }
+/* In full-width (single-column) mode, allow more columns */
+@media (max-width: 1100px) {
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  }
+}
+
 .inv-slot {
+  position: relative;
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 80px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
-  padding: 0.65rem 0.9rem;
-  font-size: 0.92rem;
+  padding: 0.6rem 0.75rem 0.6rem 0.75rem;
+  cursor: default;
+  transition: border-color 0.12s, background 0.12s;
 }
-.inv-num { font-size: 0.8rem; color: var(--muted-text); min-width: 18px; }
-.inv-content { flex: 1; cursor: pointer; }
-.inv-content.inv-empty { color: var(--muted-text); cursor: pointer; }
+.inv-slot:not(.inv-slot-dragging):not(.inv-slot-drag-over):hover {
+  border-color: var(--selected-border);
+}
+
+/* Slot number badge */
+.inv-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--border-color);
+  border-radius: 50%;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--muted-text);
+  flex-shrink: 0;
+  line-height: 1;
+  margin-bottom: 0.2rem;
+}
+
+/* Content area */
+.inv-main { flex: 1; min-width: 0; }
+.inv-content {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  word-break: break-word;
+  display: block;
+}
+.inv-content:not(.inv-empty) { cursor: pointer; }
+.inv-content.inv-empty { color: var(--muted-text); font-style: italic; }
+
 .inv-edit-input {
-  flex: 1;
+  width: 100%;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--primary-color);
   color: var(--text-color);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   padding: 0;
   outline: none;
 }
+
+/* Clear button: top-right corner */
 .inv-clear-btn {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
   background: transparent;
   border: none;
   color: var(--muted-text);
-  font-size: 1.1rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0;
+  padding: 0.1rem;
   margin: 0;
   width: auto;
-  flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.1s, color 0.1s;
 }
@@ -1589,7 +2240,8 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
 .resize-se { bottom: -4px; right: -4px; width: 12px; height: 12px; cursor: se-resize; }
 .resize-sw { bottom: -4px; left: -4px; width: 12px; height: 12px; cursor: sw-resize; }
 
-.sheet-footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color); }
+.sheet-body { margin-bottom: 2rem; }
+.sheet-footer { padding-top: 1rem; border-top: 1px solid var(--border-color); }
 
 /* ================================
    Origin / Profession Picker (Step 2)
@@ -1841,3 +2493,227 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
   padding: 0.75rem;
   border-radius: var(--radius);
 }
+
+/* ================================
+   Nav Link
+   ================================ */
+.nav-link {
+  font-size: 0.9rem;
+  color: var(--muted-text);
+  text-decoration: none;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.nav-link:hover {
+  color: var(--text-color);
+  background: var(--card-bg);
+  text-decoration: none;
+}
+
+/* ================================
+   Admin Portal
+   ================================ */
+.admin-new-btn {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+  font-size: 0.95rem;
+  padding: 0.6rem 1.2rem;
+}
+.admin-new-btn:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.admin-modal {
+  max-width: 640px;
+}
+
+.admin-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--muted-text);
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.admin-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+.admin-select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.admin-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+.admin-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.admin-save-btn {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+.admin-save-btn:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.admin-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.admin-modal-actions {
+  justify-content: flex-start;
+}
+.admin-modal-delete-btn {
+  margin-left: auto;
+}
+
+.admin-tag-badge {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+  background: var(--selected-bg);
+  color: var(--primary-color);
+  border: 1px solid var(--selected-border);
+  letter-spacing: 0.03em;
+}
+
+.admin-confirm-overlay {
+  z-index: 1100;
+}
+
+/* ================================
+   Admin Users Tab
+   ================================ */
+.admin-users-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 700px) {
+  .admin-users-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-users-section {
+  background: var(--panel-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.admin-users-heading {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-user-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--selected-bg);
+  color: var(--primary-color);
+  border: 1px solid var(--selected-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.admin-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-user-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+}
+
+.admin-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.admin-user-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-user-email {
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-approve-btn {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: #22c55e;
+  color: #22c55e;
+  flex-shrink: 0;
+}
+.admin-approve-btn:hover {
+  background: rgba(34, 197, 94, 0.25);
+}
+
+.admin-user-locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  flex-shrink: 0;
+}
+.admin-user-locked:hover { background: transparent; }

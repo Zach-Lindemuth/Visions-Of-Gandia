@@ -161,6 +161,16 @@ export async function removeTechniqueFromCharacter(token, characterId, technique
   return handleResponse(res);
 }
 
+// ── Qualities ────────────────────────────────────────────
+export async function getQualities(token, tags = []) {
+  const params = new URLSearchParams();
+  tags.forEach((t) => params.append("tags", t));
+  const query = params.toString();
+  const url = query ? `${API_BASE}/qualities?${query}` : `${API_BASE}/qualities`;
+  const res = await fetch(url, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
 // ── Equipment ────────────────────────────────────────────
 export async function createWeapon(token, characterId, data) {
   const res = await fetch(`${API_BASE}/characters/${characterId}/weapons`, {
@@ -207,6 +217,98 @@ export async function clearInventorySlot(token, characterId, slotIndex) {
   const res = await fetch(`${API_BASE}/characters/${characterId}/inventory/${slotIndex}`, {
     method: "DELETE",
     headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function equipMainHand(token, characterId, weaponInstanceId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/equipment/main-hand`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ weaponInstanceId }),
+  });
+  return handleResponse(res);
+}
+
+export async function equipArmor(token, characterId, armorInstanceId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/equipment/armor`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ armorInstanceId }),
+  });
+  return handleResponse(res);
+}
+
+export async function addQualityToWeapon(token, characterId, weaponId, qualityId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/weapons/${weaponId}/qualities/${qualityId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function removeQualityFromWeapon(token, characterId, weaponId, qualityId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/weapons/${weaponId}/qualities/${qualityId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function addQualityToArmor(token, characterId, armorId, qualityId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/armor/${armorId}/qualities/${qualityId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function removeQualityFromArmor(token, characterId, armorId, qualityId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/armor/${armorId}/qualities/${qualityId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function equipOffHandWeapon(token, characterId, weaponInstanceId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/equipment/off-hand/weapon`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ weaponInstanceId }),
+  });
+  return handleResponse(res);
+}
+
+export async function unequipSlot(token, characterId, slot) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/equipment/${slot}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteWeapon(token, characterId, weaponId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/weapons/${weaponId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteArmor(token, characterId, armorId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/armor/${armorId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function batchSetInventory(token, characterId, slots) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/inventory`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ slots }),
   });
   return handleResponse(res);
 }

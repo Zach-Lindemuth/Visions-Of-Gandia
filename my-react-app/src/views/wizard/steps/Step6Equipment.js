@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../../auth/AuthContext";
-import { getWeaponTypes, getArmorTypes } from "../../../api/characterApi";
+import { getWeaponTypes, getArmorTypes, getQualities } from "../../../api/characterApi";
+import PickerModal from "../../../components/PickerModal";
 
 const WEAPON_LIMIT = 2;
 const ARMOR_LIMIT = 1;
@@ -92,6 +93,12 @@ export default function Step6Equipment({ data, update, next, back }) {
   const [armorPlaceholder, setArmorPlaceholder] = useState("");
   const shakeTimer = useRef(null);
 
+  // Quality picker state
+  const [qualityPickerTarget, setQualityPickerTarget] = useState(null); // { type: 'weapon'|'armor', index?: number }
+  const [allQualities, setAllQualities] = useState([]);
+  const [qualitiesLoading, setQualitiesLoading] = useState(false);
+  const [activeTagFilters, setActiveTagFilters] = useState([]);
+
   useEffect(() => {
     Promise.all([
       getWeaponTypes(auth.token).catch(() => []),
@@ -104,6 +111,88 @@ export default function Step6Equipment({ data, update, next, back }) {
       .finally(() => setLoading(false));
   }, [auth.token]);
 
+  const openQualityPicker = (type, index) => {
+    setQualityPickerTarget({ type, index });
+    setActiveTagFilters([]);
+
+    // Determine which category tag to load
+    let categoryTag;
+    if (type === "weapon") {
+      const w = data.weapons[index];
+      const wt = weaponTypes.find((t) => t.weaponTypeId === w.weaponTypeId);
+      categoryTag = wt?.tag.includes("FOCUS") ? "Focus" : "Weapon";
+    } else {
+      categoryTag = "Armor";
+    }
+
+    setQualitiesLoading(true);
+    getQualities(auth.token, [categoryTag])
+      .then((q) => setAllQualities(Array.isArray(q) ? q : []))
+      .catch(() => setAllQualities([]))
+      .finally(() => setQualitiesLoading(false));
+  };
+
+  const closeQualityPicker = () => {
+    setQualityPickerTarget(null);
+    setAllQualities([]);
+    setActiveTagFilters([]);
+  };
+
+  const toggleTagFilter = (tag) => {
+    setActiveTagFilters((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const getAvailableFilterTags = () => {
+    if (!qualityPickerTarget) return [];
+    const tagSet = new Set();
+    allQualities.forEach((q) => q.tags?.forEach((t) => tagSet.add(t)));
+    // Remove the broad category tags from filter options
+    tagSet.delete("Weapon");
+    tagSet.delete("Armor");
+    tagSet.delete("Shield");
+    tagSet.delete("Focus");
+    return [...tagSet].sort();
+  };
+
+  const getFilteredQualities = () => {
+    if (activeTagFilters.length === 0) return allQualities;
+    return allQualities.filter((q) =>
+      activeTagFilters.every((tag) => q.tags?.includes(tag))
+    );
+  };
+
+  const getSelectedQualityIds = () => {
+    if (!qualityPickerTarget) return [];
+    if (qualityPickerTarget.type === "weapon") {
+      return data.weapons[qualityPickerTarget.index]?.qualityIds ?? [];
+    }
+    return data.armorQualityIds ?? [];
+  };
+
+  const toggleQuality = (qualityId) => {
+    if (!qualityPickerTarget) return;
+    if (qualityPickerTarget.type === "weapon") {
+      const idx = qualityPickerTarget.index;
+      const weapon = data.weapons[idx];
+      const current = weapon.qualityIds ?? [];
+      const updated = current.includes(qualityId)
+        ? current.filter((id) => id !== qualityId)
+        : [...current, qualityId];
+      const weapons = data.weapons.map((w, i) =>
+        i === idx ? { ...w, qualityIds: updated } : w
+      );
+      update({ weapons });
+    } else {
+      const current = data.armorQualityIds ?? [];
+      const updated = current.includes(qualityId)
+        ? current.filter((id) => id !== qualityId)
+        : [...current, qualityId];
+      update({ armorQualityIds: updated });
+    }
+  };
+
   const addWeapon = (type) => {
     if (data.weapons.length < WEAPON_LIMIT) {
       setWeaponPlaceholders((prev) => [
@@ -111,7 +200,7 @@ export default function Step6Equipment({ data, update, next, back }) {
         pickPlaceholder(WEAPON_PLACEHOLDERS, FALLBACK_WEAPON, type.name),
       ]);
       update({
-        weapons: [...data.weapons, { weaponTypeId: type.weaponTypeId, name: "", description: "" }],
+        weapons: [...data.weapons, { weaponTypeId: type.weaponTypeId, name: "", description: "", qualityIds: [] }],
       });
     }
   };
@@ -128,12 +217,12 @@ export default function Step6Equipment({ data, update, next, back }) {
 
   const selectArmor = (at) => {
     setArmorPlaceholder(pickPlaceholder(ARMOR_PLACEHOLDERS, FALLBACK_ARMOR, at.name));
-    update({ armorTypeId: at.armorTypeId, armorName: "" });
+    update({ armorTypeId: at.armorTypeId, armorName: "", armorQualityIds: [] });
   };
 
   const removeArmor = () => {
     setArmorPlaceholder("");
-    update({ armorTypeId: null, armorName: "" });
+    update({ armorTypeId: null, armorName: "", armorQualityIds: [] });
   };
 
   const weaponsDone = data.weapons.length === WEAPON_LIMIT;
@@ -163,6 +252,16 @@ export default function Step6Equipment({ data, update, next, back }) {
 
   const selectedArmorType = armorTypes.find((at) => at.armorTypeId === data.armorTypeId);
 
+  // Helper to look up quality name from the loaded list
+  const qualityNameCache = useRef({});
+  const resolveQualityName = (qualityId) => {
+    const cached = qualityNameCache.current[qualityId];
+    if (cached) return cached;
+    const q = allQualities.find((q) => q.qualityId === qualityId);
+    if (q) qualityNameCache.current[qualityId] = q.name;
+    return q?.name ?? `Quality #${qualityId}`;
+  };
+
   return (
     <div className="wizard-step">
       <div className="wizard-step-header">
@@ -178,6 +277,7 @@ export default function Step6Equipment({ data, update, next, back }) {
       </div>
       <p className="wizard-hint">
         Choose <strong>2 weapons</strong> and <strong>1 armor</strong> to start with.
+        You can optionally add <strong>qualities</strong> to each piece.
       </p>
 
       {loading ? (
@@ -196,7 +296,7 @@ export default function Step6Equipment({ data, update, next, back }) {
                     <div key={i} className="equip-selected-card">
                       <div className="talent-selected-header">
                         <strong>{type?.name ?? "Weapon"}</strong>
-                        <button className="equip-remove-btn" onClick={() => removeWeapon(i)} title="Remove">×</button>
+                        <button className="equip-remove-btn" onClick={() => removeWeapon(i)} title="Remove">&times;</button>
                       </div>
                       <div className="form-group" style={{ marginBottom: 0, marginTop: "0.65rem" }}>
                         <label>Custom name</label>
@@ -205,6 +305,23 @@ export default function Step6Equipment({ data, update, next, back }) {
                           onChange={(e) => updateWeaponName(i, e.target.value)}
                           placeholder={weaponPlaceholders[i] ?? ""}
                         />
+                      </div>
+                      <div className="equip-quality-row">
+                        {(w.qualityIds ?? []).length > 0 && (
+                          <div className="equip-quality-badges">
+                            {(w.qualityIds ?? []).map((qId) => (
+                              <span key={qId} className="equip-quality-badge">
+                                {resolveQualityName(qId)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <button
+                          className="equip-add-quality-btn"
+                          onClick={() => openQualityPicker("weapon", i)}
+                        >
+                          + Qualities
+                        </button>
                       </div>
                     </div>
                   );
@@ -239,7 +356,7 @@ export default function Step6Equipment({ data, update, next, back }) {
                 <div className="equip-selected-card">
                   <div className="talent-selected-header">
                     <strong>{selectedArmorType?.name ?? "Armor"}</strong>
-                    <button className="equip-remove-btn" onClick={removeArmor} title="Remove">×</button>
+                    <button className="equip-remove-btn" onClick={removeArmor} title="Remove">&times;</button>
                   </div>
                   <div className="form-group" style={{ marginBottom: 0, marginTop: "0.65rem" }}>
                     <label>Custom name</label>
@@ -248,6 +365,23 @@ export default function Step6Equipment({ data, update, next, back }) {
                       onChange={(e) => update({ armorName: e.target.value })}
                       placeholder={armorPlaceholder}
                     />
+                  </div>
+                  <div className="equip-quality-row">
+                    {(data.armorQualityIds ?? []).length > 0 && (
+                      <div className="equip-quality-badges">
+                        {(data.armorQualityIds ?? []).map((qId) => (
+                          <span key={qId} className="equip-quality-badge">
+                            {resolveQualityName(qId)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      className="equip-add-quality-btn"
+                      onClick={() => openQualityPicker("armor")}
+                    >
+                      + Qualities
+                    </button>
                   </div>
                 </div>
               </div>
@@ -274,12 +408,117 @@ export default function Step6Equipment({ data, update, next, back }) {
       )}
 
       <div className="wizard-nav">
-        <button className="btn-secondary" onClick={back}>← Back</button>
+        <button className="btn-secondary" onClick={back}>&larr; Back</button>
         {allDone && (
-          <button className="wizard-confirm-btn" onClick={tryNext}>Confirm Equipment →</button>
+          <button className="wizard-confirm-btn" onClick={tryNext}>Confirm Equipment &rarr;</button>
         )}
-        <button onClick={tryNext}>Next →</button>
+        <button onClick={tryNext}>Next &rarr;</button>
       </div>
+
+      {/* ── Quality Picker Modal ── */}
+      {qualityPickerTarget && (
+        <QualityPickerModal
+          target={qualityPickerTarget}
+          qualities={getFilteredQualities()}
+          loading={qualitiesLoading}
+          selectedIds={getSelectedQualityIds()}
+          availableTags={getAvailableFilterTags()}
+          activeTagFilters={activeTagFilters}
+          onToggleTag={toggleTagFilter}
+          onToggleQuality={toggleQuality}
+          onClose={closeQualityPicker}
+          weaponTypes={weaponTypes}
+          armorTypes={armorTypes}
+          weapons={data.weapons}
+          armorTypeId={data.armorTypeId}
+        />
+      )}
     </div>
+  );
+}
+
+function QualityPickerModal({
+  target,
+  qualities,
+  loading,
+  selectedIds,
+  availableTags,
+  activeTagFilters,
+  onToggleTag,
+  onToggleQuality,
+  onClose,
+  weaponTypes,
+  armorTypes,
+  weapons,
+  armorTypeId,
+}) {
+  let title = "Select Qualities";
+  if (target.type === "weapon") {
+    const w = weapons[target.index];
+    const wt = weaponTypes.find((t) => t.weaponTypeId === w?.weaponTypeId);
+    title = `${wt?.name ?? "Weapon"} Qualities`;
+  } else {
+    const at = armorTypes.find((t) => t.armorTypeId === armorTypeId);
+    title = `${at?.name ?? "Armor"} Qualities`;
+  }
+
+  return (
+    <PickerModal
+      title={title}
+      items={qualities}
+      loading={loading}
+      getId={(q) => q.qualityId}
+      onSelect={onToggleQuality}
+      onClose={onClose}
+      renderCardContent={(q) => {
+        const isSelected = selectedIds.includes(q.qualityId);
+        return (
+          <div className={`quality-picker-card-inner${isSelected ? " quality-selected" : ""}`}>
+            <div className="quality-picker-card-header">
+              <strong>{q.name}</strong>
+              {isSelected && <span className="quality-check-mark">&#10003;</span>}
+            </div>
+            {q.description && <p>{q.description}</p>}
+            {q.tags && q.tags.length > 0 && (
+              <div className="quality-tag-row">
+                {q.tags
+                  .filter((t) => !["Weapon", "Armor", "Shield", "Focus"].includes(t))
+                  .map((t) => (
+                    <span key={t} className="quality-tag-chip">{t}</span>
+                  ))}
+              </div>
+            )}
+          </div>
+        );
+      }}
+      tagFilter={
+        availableTags.length > 0 ? (
+          <div className="quality-tag-filter-bar">
+            {availableTags.map((tag) => (
+              <button
+                key={tag}
+                className={`quality-tag-filter-btn${activeTagFilters.includes(tag) ? " active" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleTag(tag);
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        ) : null
+      }
+      footer={
+        <div className="quality-modal-footer">
+          <span className="quality-modal-count muted">
+            {selectedIds.length} selected
+          </span>
+          <button className="quality-accept-btn" onClick={onClose}>
+            Accept
+          </button>
+        </div>
+      }
+    />
   );
 }

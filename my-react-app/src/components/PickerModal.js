@@ -13,6 +13,8 @@ export default function PickerModal({
   renderCardContent,
   onSelect,
   onClose,
+  tagFilter,
+  footer,
 }) {
   const [pos, setPos] = useState(null);
   const [size, setSize] = useState(null);
@@ -21,7 +23,7 @@ export default function PickerModal({
 
   useEffect(() => {
     const w = Math.min(900, window.innerWidth * 0.92);
-    const h = Math.min(700, window.innerHeight * 0.88);
+    const h = Math.min(820, window.innerHeight * 0.92);
     setSize({ width: w, height: h });
     setPos({ x: (window.innerWidth - w) / 2, y: (window.innerHeight - h) / 2 });
   }, []);
@@ -119,6 +121,7 @@ export default function PickerModal({
             </button>
           </div>
         </div>
+        {tagFilter}
         <PaginatedPickerList
           items={items}
           loading={loading}
@@ -129,6 +132,7 @@ export default function PickerModal({
           onSelect={onSelect}
           renderCardContent={renderCardContent}
         />
+        {footer}
       </div>
     </div>
   );
