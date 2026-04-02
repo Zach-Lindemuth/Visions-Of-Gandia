@@ -18,14 +18,17 @@ export default function PickerModal({
 }) {
   const [pos, setPos] = useState(null);
   const [size, setSize] = useState(null);
-  const dragRef = useRef(null);
-  const resizeRef = useRef(null);
+  const cleanupRef = useRef(null);
 
   useEffect(() => {
     const w = Math.min(900, window.innerWidth * 0.92);
     const h = Math.min(820, window.innerHeight * 0.92);
     setSize({ width: w, height: h });
     setPos({ x: (window.innerWidth - w) / 2, y: (window.innerHeight - h) / 2 });
+  }, []);
+
+  useEffect(() => {
+    return () => { if (cleanupRef.current) cleanupRef.current(); };
   }, []);
 
   const onDragStart = useCallback(
@@ -42,7 +45,9 @@ export default function PickerModal({
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        cleanupRef.current = null;
       };
+      cleanupRef.current = onUp;
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
@@ -77,7 +82,9 @@ export default function PickerModal({
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        cleanupRef.current = null;
       };
+      cleanupRef.current = onUp;
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },

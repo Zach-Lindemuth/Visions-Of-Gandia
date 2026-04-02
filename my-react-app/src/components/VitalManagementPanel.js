@@ -38,12 +38,17 @@ export default function VitalManagementPanel({ type, current, max, onApply, onCh
   // ── Drag / Resize (same pattern as PickerModal) ────────
   const [pos, setPos] = useState(null);
   const [size, setSize] = useState(null);
+  const cleanupRef = useRef(null);
 
   useEffect(() => {
     const w = Math.min(480, window.innerWidth * 0.92);
     const h = Math.min(560, window.innerHeight * 0.85);
     setSize({ width: w, height: h });
     setPos({ x: (window.innerWidth - w) / 2, y: (window.innerHeight - h) / 2 });
+  }, []);
+
+  useEffect(() => {
+    return () => { if (cleanupRef.current) cleanupRef.current(); };
   }, []);
 
   const onDragStart = useCallback(
@@ -59,7 +64,9 @@ export default function VitalManagementPanel({ type, current, max, onApply, onCh
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        cleanupRef.current = null;
       };
+      cleanupRef.current = onUp;
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
@@ -92,7 +99,9 @@ export default function VitalManagementPanel({ type, current, max, onApply, onCh
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        cleanupRef.current = null;
       };
+      cleanupRef.current = onUp;
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },

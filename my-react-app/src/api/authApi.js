@@ -1,4 +1,4 @@
-const API_BASE = "https://localhost:7175/api";
+import { API_BASE } from "./apiClient";
 
 export async function loginUser(username, password) {
   const response = await fetch(`${API_BASE}/authentication/login`, {
@@ -61,4 +61,13 @@ export async function logoutUser() {
     method: "POST",
     credentials: "include",
   });
+}
+
+export async function refreshWithRetry() {
+  try {
+    return await refreshToken();
+  } catch (err) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return await refreshToken();
+  }
 }

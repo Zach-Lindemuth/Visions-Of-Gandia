@@ -22,12 +22,6 @@ export default function Home() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (auth?.roleName === "Admin") {
-      navigate("/admin", { replace: true });
-    }
-  }, [auth?.roleName, navigate]);
-
-  useEffect(() => {
     getCharacters(auth.token)
       .then((data) => setCharacters(Array.isArray(data) ? data : []))
       .catch(() => {})

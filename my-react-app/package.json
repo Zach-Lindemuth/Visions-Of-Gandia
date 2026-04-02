@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@3d-dice/dice-box": "^1.1.4",
+    "@microsoft/signalr": "^10.0.0",
     "@owlbear-rodeo/sdk": "^3.1.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",

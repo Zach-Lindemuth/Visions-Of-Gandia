@@ -1,6 +1,9 @@
-import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useRoom } from "../context/RoomContext";
+import JoinRoomModal from "../components/JoinRoomModal";
+import { getRoomCharacter } from "../api/roomApi";
 import PickerModal from "../components/PickerModal";
 import VitalManagementPanel from "../components/VitalManagementPanel";
 import {
@@ -55,6 +58,8 @@ const LABELS = {
 export default function CharacterSheet() {
   const { id } = useParams();
   const { auth } = useAuth();
+  const navigate = useNavigate();
+  const { room, isOwner, changedCharacterId, clearChangedCharacter } = useRoom();
   const [character, setCharacter] = useState(null);
   const [equipment, setEquipment] = useState(null);
   const [inventory, setInventory] = useState(null);
@@ -64,6 +69,17 @@ export default function CharacterSheet() {
   const [pickerModal, setPickerModal] = useState(null);
   const [vitalPanel, setVitalPanel] = useState(null); // 'life' | 'energy' | 'items' | 'gold' | null
   const [busy, setBusy] = useState(false);
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  // Tracks the timestamp of the last mutation WE submitted, so we can ignore
+  // CharacterChanged events that we ourselves caused (we already have latest state).
+  const lastLocalMutationRef = useRef(0);
+
+  // Room access: is this character owned by someone else in the room?
+  const roomMember = room?.members?.find((m) => m.characterId === parseInt(id));
+  const isRoomCharacter = !!roomMember && roomMember.ownerUserId !== auth?.userId;
+  // Members see others read-only; room owner has full write access
+  const sheetReadOnly = isRoomCharacter && !isOwner;
+  const canEditVitals = !sheetReadOnly;
 
   // Inventory item picker (for empty slots)
   const [invItemPickerSlot, setInvItemPickerSlot] = useState(null); // slotIndex | null
@@ -76,6 +92,7 @@ export default function CharacterSheet() {
   // { source: 'equipped'|'inventory', slot?: 'mainHand'|'offHand'|'armor', slotIndex?: number, itemType: 'weapon'|'armor'|'shield'|'generic', item: object }
   const [dragOverTarget, setDragOverTarget] = useState(null); // 'mainHand'|'offHand'|'armor'|`inv-${n}`
   const [inventoryUnlocked, setInventoryUnlocked] = useState(false);
+  const [confirmDeleteEquip, setConfirmDeleteEquip] = useState(null); // { slot, name }
 
   // Equipment quality picker state
   const [qualityPickerTarget, setQualityPickerTarget] = useState(null); // { slot: 'mainHand'|'offHand'|'armor', itemId: number }
@@ -84,23 +101,97 @@ export default function CharacterSheet() {
   const [activeTagFilters, setActiveTagFilters] = useState([]);
 
   useEffect(() => {
-    Promise.all([
-      getCharacterById(auth.token, id),
-      getCharacterEquipment(auth.token, id).catch(() => null),
-      getCharacterInventory(auth.token, id).catch(() => null),
-      getTalents(auth.token).catch(() => []),
-      getArcana(auth.token).catch(() => []),
-      getTechniques(auth.token).catch(() => []),
-    ])
-      .then(([char, eq, inv, talents, arcana, techniques]) => {
-        setCharacter(char);
-        setEquipment(eq);
-        setInventory(inv);
-        setRefData({ talents, arcana, techniques });
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [auth.token, id]);
+    setLoading(true);
+    setError(null);
+
+    if (isRoomCharacter && room) {
+      // Fetch another player's character via the room-scoped endpoint.
+      Promise.all([
+        getRoomCharacter(auth.token, room.roomId, id),
+        getCharacterEquipment(auth.token, id).catch(() => null),
+        getCharacterInventory(auth.token, id).catch(() => null),
+        getTalents(auth.token).catch(() => []),
+        getArcana(auth.token).catch(() => []),
+        getTechniques(auth.token).catch(() => []),
+      ])
+        .then(([char, eq, inv, talents, arcana, techniques]) => {
+          setCharacter(char);
+          setEquipment(eq);
+          setInventory(inv);
+          setRefData({ talents, arcana, techniques });
+        })
+        .catch((err) => setError(err.message))
+        .finally(() => setLoading(false));
+    } else {
+      Promise.all([
+        getCharacterById(auth.token, id),
+        getCharacterEquipment(auth.token, id).catch(() => null),
+        getCharacterInventory(auth.token, id).catch(() => null),
+        getTalents(auth.token).catch(() => []),
+        getArcana(auth.token).catch(() => []),
+        getTechniques(auth.token).catch(() => []),
+      ])
+        .then(([char, eq, inv, talents, arcana, techniques]) => {
+          setCharacter(char);
+          setEquipment(eq);
+          setInventory(inv);
+          setRefData({ talents, arcana, techniques });
+        })
+        .catch((err) => setError(err.message))
+        .finally(() => setLoading(false));
+    }
+  }, [auth.token, id, isRoomCharacter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync vitals from room updates (e.g. room owner edits another's vitals)
+  useEffect(() => {
+    if (!isRoomCharacter || !room) return;
+    const card = room.members.find((m) => m.characterId === parseInt(id));
+    if (card && character) {
+      setCharacter((prev) =>
+        prev
+          ? {
+              ...prev,
+              healthCurrent: card.healthCurrent,
+              healthMax: card.healthMax,
+              energyCurrent: card.energyCurrent,
+              energyMax: card.energyMax,
+              itemPointsCurrent: card.itemPointsCurrent,
+              itemPointsMax: card.itemPointsMax,
+              gold: card.gold,
+            }
+          : prev
+      );
+    }
+  }, [room?.members]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Silent re-fetch when CharacterChanged arrives for this character.
+  // Skipped if WE made the change within the last 2 seconds (we already have latest state).
+  useEffect(() => {
+    if (changedCharacterId !== parseInt(id)) return;
+    clearChangedCharacter();
+
+    const msSinceOwnMutation = Date.now() - lastLocalMutationRef.current;
+    if (msSinceOwnMutation < 2000) return; // our own change — local state is already correct
+
+    // Re-fetch silently (no loading spinner)
+    const silentFetch = isRoomCharacter && room
+      ? Promise.all([
+          getRoomCharacter(auth.token, room.roomId, id),
+          getCharacterEquipment(auth.token, id).catch(() => null),
+          getCharacterInventory(auth.token, id).catch(() => null),
+        ])
+      : Promise.all([
+          getCharacterById(auth.token, id),
+          getCharacterEquipment(auth.token, id).catch(() => null),
+          getCharacterInventory(auth.token, id).catch(() => null),
+        ]);
+
+    silentFetch.then(([char, eq, inv]) => {
+      if (char) setCharacter(char);
+      if (eq !== undefined) setEquipment(eq);
+      if (inv !== undefined) setInventory(inv);
+    }).catch(() => { /* silent — don't surface re-fetch errors */ });
+  }, [changedCharacterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Add / Remove handlers ──────────────────────────────
 
@@ -208,6 +299,7 @@ export default function CharacterSheet() {
     }
 
     setCharacter((prev) => ({ ...prev, ...localPatch }));
+    lastLocalMutationRef.current = Date.now();
     try {
       await updateCharacter(auth.token, id, patch);
     } catch (err) {
@@ -220,6 +312,7 @@ export default function CharacterSheet() {
     const rollback = {};
     for (const key of Object.keys(patch)) rollback[key] = character[key];
     setCharacter((prev) => ({ ...prev, ...patch }));
+    lastLocalMutationRef.current = Date.now();
     try {
       await updateCharacter(auth.token, id, patch);
     } catch (err) {
@@ -241,7 +334,15 @@ export default function CharacterSheet() {
 
   // ── Delete equipped item ───────────────────────────────
 
-  const handleDeleteEquipment = async (slot) => {
+  const handleDeleteEquipment = (slot) => {
+    const item = equipment?.[slot];
+    if (!item) return;
+    setConfirmDeleteEquip({ slot, name: item.name || (slot === "armor" ? "Armor" : "Weapon") });
+  };
+
+  const handleConfirmDeleteEquip = async () => {
+    if (!confirmDeleteEquip) return;
+    const { slot } = confirmDeleteEquip;
     const item = equipment?.[slot];
     if (!item) return;
     setBusy(true);
@@ -256,6 +357,7 @@ export default function CharacterSheet() {
       setError(err.message);
     } finally {
       setBusy(false);
+      setConfirmDeleteEquip(null);
     }
   };
 
@@ -638,18 +740,51 @@ export default function CharacterSheet() {
   const pickerProps = getPickerProps();
 
   return (
-    <div className="sheet">
+    <div className={`sheet ${sheetReadOnly ? "sheet-view-only" : ""}`}>
       {/* ── Header ─────────────────────────────── */}
       <div className="sheet-header">
         <div className="sheet-identity">
           <h1 className="sheet-name">{character.name}</h1>
           <p className="sheet-title">{character.nickname}</p>
           <p className="sheet-meta muted">Level 1 · {character.experience ?? 0} XP</p>
+          {isRoomCharacter && (
+            <span className="sheet-readonly-badge">
+              {isOwner ? "Room Owner" : "Read Only"}
+            </span>
+          )}
+        </div>
+        <div className="sheet-header-actions">
         </div>
         {character.imageUrl && (
           <img src={character.imageUrl} alt={character.name} className="sheet-avatar" />
         )}
       </div>
+
+      {showRoomModal && (
+        <JoinRoomModal
+          characterId={parseInt(id)}
+          onClose={() => setShowRoomModal(false)}
+        />
+      )}
+
+      {confirmDeleteEquip && (
+        <div className="modal-overlay" onClick={() => !busy && setConfirmDeleteEquip(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">Delete {confirmDeleteEquip.slot === "armor" ? "Armor" : "Weapon"}?</h2>
+            <p style={{ margin: "0 0 6px" }}>
+              <strong>{confirmDeleteEquip.name}</strong> will be permanently deleted.
+            </p>
+            <p className="muted" style={{ fontSize: "0.85rem", margin: "0 0 20px" }}>This cannot be undone.</p>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button className="btn-secondary" onClick={() => setConfirmDeleteEquip(null)} disabled={busy}>Cancel</button>
+              <button className="equip-delete-confirm-btn" onClick={handleConfirmDeleteEquip} disabled={busy}>
+                {busy ? "Deleting…" : "Delete Forever"}
+              </button>
+            </div>
+            <button className="modal-close-btn" onClick={() => setConfirmDeleteEquip(null)} disabled={busy}>✕</button>
+          </div>
+        </div>
+      )}
 
       <div className="sheet-body">
         {/* ── Left column ──────────────────────── */}
@@ -664,7 +799,8 @@ export default function CharacterSheet() {
                 max={character.healthMax ?? 0}
                 color="var(--vital-life)"
                 onChangeCurrent={(d) => updateStat("healthCurrent", d)}
-                onOpenPanel={() => setVitalPanel("life")}
+                onOpenPanel={() => !sheetReadOnly && setVitalPanel("life")}
+                disabled={!canEditVitals}
               />
               <Vital
                 label="Energy"
@@ -672,26 +808,31 @@ export default function CharacterSheet() {
                 max={character.energyMax ?? 0}
                 color="var(--vital-energy)"
                 onChangeCurrent={(d) => updateStat("energyCurrent", d)}
-                onOpenPanel={() => setVitalPanel("energy")}
+                onOpenPanel={() => !sheetReadOnly && setVitalPanel("energy")}
+                disabled={!canEditVitals}
               />
               <VitalSimple
                 label="Items"
                 display={`${character.itemPointsCurrent ?? 3} / ${character.itemPointsMax ?? 3}`}
-                onOpenPanel={() => setVitalPanel("items")}
+                onOpenPanel={() => !sheetReadOnly && setVitalPanel("items")}
                 onDec={() => updateStat("itemPointsCurrent", -1)}
                 onInc={() => updateStat("itemPointsCurrent", 1)}
+                disabled={!canEditVitals}
               />
               <VitalSimple
                 label="Gold"
                 display={character.gold ?? 0}
-                onOpenPanel={() => setVitalPanel("gold")}
+                onOpenPanel={() => !sheetReadOnly && setVitalPanel("gold")}
                 onDec={() => updateStat("gold", -1)}
                 onInc={() => updateStat("gold", 1)}
+                disabled={!canEditVitals}
               />
             </div>
-            <button className="btn-secondary vitals-reset-btn" onClick={handleReset}>
-              Reset
-            </button>
+            {!sheetReadOnly && (
+              <button className="btn-secondary vitals-reset-btn" onClick={handleReset}>
+                Reset
+              </button>
+            )}
           </div>
 
           {/* Attributes */}
@@ -1072,39 +1213,51 @@ export default function CharacterSheet() {
 
 // ── Sub-components ───────────────────────────────────────
 
-function Vital({ label, current, max, color, onChangeCurrent, onOpenPanel }) {
+function Vital({ label, current, max, color, onChangeCurrent, onOpenPanel, disabled }) {
   const pct = max > 0 ? Math.min(100, (current / max) * 100) : 0;
   return (
-    <div className="vital">
+    <div className={`vital ${disabled ? "vital-disabled" : ""}`}>
       <div className="vital-row">
         <span className="vital-label">{label}</span>
-        <span className="vital-value vital-value-clickable" onClick={onOpenPanel} title={`Manage ${label}`}>
+        <span
+          className={`vital-value ${disabled ? "" : "vital-value-clickable"}`}
+          onClick={disabled ? undefined : onOpenPanel}
+          title={disabled ? undefined : `Manage ${label}`}
+        >
           {current} / {max}
         </span>
       </div>
-      <div className="vital-track" onClick={onOpenPanel} style={{ cursor: "pointer" }}>
+      <div
+        className="vital-track"
+        onClick={disabled ? undefined : onOpenPanel}
+        style={{ cursor: disabled ? "default" : "pointer" }}
+      >
         <div className="vital-fill" style={{ width: `${pct}%`, background: color }} />
       </div>
       <div className="vital-controls-below">
-        <button className="vital-btn" onClick={() => onChangeCurrent(-1)}>−</button>
-        <button className="vital-btn" onClick={() => onChangeCurrent(1)}>+</button>
+        <button className="vital-btn" onClick={() => !disabled && onChangeCurrent(-1)} disabled={disabled}>−</button>
+        <button className="vital-btn" onClick={() => !disabled && onChangeCurrent(1)} disabled={disabled}>+</button>
       </div>
     </div>
   );
 }
 
-function VitalSimple({ label, display, onOpenPanel, onDec, onInc }) {
+function VitalSimple({ label, display, onOpenPanel, onDec, onInc, disabled }) {
   return (
-    <div className="vital vital-simple">
+    <div className={`vital vital-simple ${disabled ? "vital-disabled" : ""}`}>
       <div className="vital-row">
         <span className="vital-label">{label}</span>
-        <span className="vital-value vital-value-clickable" onClick={onOpenPanel} title={`Manage ${label}`}>
+        <span
+          className={`vital-value ${disabled ? "" : "vital-value-clickable"}`}
+          onClick={disabled ? undefined : onOpenPanel}
+          title={disabled ? undefined : `Manage ${label}`}
+        >
           {display}
         </span>
       </div>
       <div className="vital-controls-below">
-        <button className="vital-btn" onClick={onDec}>−</button>
-        <button className="vital-btn" onClick={onInc}>+</button>
+        <button className="vital-btn" onClick={onDec} disabled={disabled}>−</button>
+        <button className="vital-btn" onClick={onInc} disabled={disabled}>+</button>
       </div>
     </div>
   );

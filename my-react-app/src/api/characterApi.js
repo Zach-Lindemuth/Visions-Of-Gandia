@@ -1,25 +1,4 @@
-const API_BASE = "https://localhost:7175/api";
-
-function authHeaders(token) {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function handleResponse(res) {
-  if (!res.ok) {
-    if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
-    }
-    const text = await res.text();
-    const error = new Error(text || `HTTP ${res.status}`);
-    error.status = res.status;
-    throw error;
-  }
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+import { API_BASE, authHeaders, handleResponse } from "./apiClient";
 
 // ── Characters ──────────────────────────────────────────
 export async function getCharacters(token) {

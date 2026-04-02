@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { refreshToken as refreshTokenApi, logoutUser } from "../api/authApi";
+import { refreshToken as refreshTokenApi, refreshWithRetry, logoutUser } from "../api/authApi";
 
 const AuthContext = createContext(null);
 
@@ -15,6 +15,10 @@ export function AuthProvider({ children }) {
   const lastActivityRef = useRef(Date.now());
   const authRef = useRef(auth);
   authRef.current = auth;
+  // Guards against React StrictMode double-invoking the session restore effect,
+  // which would cause the rotated refresh token to be consumed twice — clearing the cookie.
+  const sessionRestoreCalledRef = useRef(false);
+  const channelRef = useRef(null);
 
   // Track user activity (mouse, keyboard, touch)
   useEffect(() => {
@@ -35,9 +39,34 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // BroadcastChannel setup — must be before session restore so channelRef is set
+  useEffect(() => {
+    const channel = new BroadcastChannel("vsq_auth");
+    channelRef.current = channel;
+
+    channel.onmessage = (event) => {
+      const { type, token, tokenExpiresAt } = event.data;
+      if (type === "TOKEN_REFRESHED") {
+        setAuth((prev) =>
+          prev ? { ...prev, token, tokenExpiresAt: new Date(tokenExpiresAt) } : null
+        );
+      } else if (type === "LOGGED_OUT") {
+        setAuth(null);
+      }
+    };
+
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
+  }, []);
+
   // Attempt to restore session from HttpOnly refresh token cookie on mount
   useEffect(() => {
-    refreshTokenApi()
+    if (sessionRestoreCalledRef.current) return;
+    sessionRestoreCalledRef.current = true;
+
+    refreshWithRetry()
       .then((data) => {
         setAuth({
           userId: data.userId,
@@ -46,6 +75,11 @@ export function AuthProvider({ children }) {
           isActive: true,
           token: data.token,
           tokenExpiresAt: new Date(data.tokenExpiresAt),
+        });
+        channelRef.current?.postMessage({
+          type: "TOKEN_REFRESHED",
+          token: data.token,
+          tokenExpiresAt: data.tokenExpiresAt,
         });
       })
       .catch(() => {
@@ -78,6 +112,11 @@ export function AuthProvider({ children }) {
               ? { ...prev, token: data.token, tokenExpiresAt: new Date(data.tokenExpiresAt) }
               : null
           );
+          channelRef.current?.postMessage({
+            type: "TOKEN_REFRESHED",
+            token: data.token,
+            tokenExpiresAt: data.tokenExpiresAt,
+          });
         } catch {
           // Refresh failed — let the token expire naturally.
           // The unauthorized event handler will redirect if the user acts.
@@ -88,19 +127,25 @@ export function AuthProvider({ children }) {
     return () => clearInterval(intervalId);
   }, [auth?.tokenExpiresAt]); // Reset timer only when expiry changes
 
-  // Handle 401 responses from API calls: attempt refresh, fall back to logout
+  // Handle 401 responses from API calls: attempt refresh with retry, fall back to logout
   useEffect(() => {
     const handleUnauthorized = async () => {
       try {
-        const data = await refreshTokenApi();
+        const data = await refreshWithRetry();
         setAuth((prev) =>
           prev
             ? { ...prev, token: data.token, tokenExpiresAt: new Date(data.tokenExpiresAt) }
             : null
         );
+        channelRef.current?.postMessage({
+          type: "TOKEN_REFRESHED",
+          token: data.token,
+          tokenExpiresAt: data.tokenExpiresAt,
+        });
       } catch {
         // Refresh token is expired or invalid — force re-login
         setAuth(null);
+        channelRef.current?.postMessage({ type: "LOGGED_OUT" });
       }
     };
 
@@ -126,6 +171,7 @@ export function AuthProvider({ children }) {
       // best-effort
     }
     setAuth(null);
+    channelRef.current?.postMessage({ type: "LOGGED_OUT" });
   }, []);
 
   return (
