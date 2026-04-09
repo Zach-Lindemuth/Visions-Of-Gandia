@@ -388,7 +388,10 @@ export default function Step2OriginVision({ data, update, next, back }) {
         <button className="btn-secondary" onClick={back}>
           ← Back
         </button>
-        <button onClick={next} disabled={!descConfirmed || !profConfirmed}>Next →</button>
+        <button
+          onClick={descConfirmed && profCanConfirm && !profConfirmed ? confirmProfession : next}
+          disabled={!descConfirmed || (!profConfirmed && !profCanConfirm)}
+        >Next →</button>
       </div>
 
       {/* ══ PROFESSION CHOICE MODAL ══════════════════════════════════════════ */}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const PAGE_SIZE = 8;
+const DEFAULT_PAGE_SIZE = 8;
 
 function getPaginationItems(current, total) {
   if (total <= 7) {
@@ -37,6 +37,7 @@ export default function PaginatedPickerList({
   getId,
   onSelect,
   renderCardContent,
+  pageSize = DEFAULT_PAGE_SIZE,
 }) {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,9 +57,9 @@ export default function PaginatedPickerList({
       )
     : items;
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   const paginationItems = getPaginationItems(safePage, totalPages);
 
   return (

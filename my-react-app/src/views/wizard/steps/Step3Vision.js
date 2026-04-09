@@ -174,7 +174,7 @@ export default function Step3Vision({ data, update, next, back }) {
         <button className="btn-secondary" onClick={back}>
           ← Back
         </button>
-        <button onClick={next} disabled={selectedVision && !visionConfirmed}>Next →</button>
+        <button onClick={!visionConfirmed && selectedVision ? confirmVision : next}>Next →</button>
       </div>
     </div>
   );

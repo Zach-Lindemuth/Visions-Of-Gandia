@@ -147,6 +147,7 @@ export default function Step5Powers({ data, update, next, back }) {
 
       <PaginatedPickerList
         key={tab}
+        pageSize={5}
         items={available}
         loading={loading}
         emptyMessage={tabEmpty ? `No ${tab} in the database yet.` : `No ${tab} available.`}

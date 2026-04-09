@@ -1,5 +1,6 @@
 import NavBar from "../components/NavBar";
 import RoomSidebar from "../components/RoomSidebar";
+import DiceRoller from "../components/DiceRoller";
 import { useRoom } from "../context/RoomContext";
 
 export default function AppLayout({ children }) {
@@ -14,6 +15,7 @@ export default function AppLayout({ children }) {
         </main>
         <RoomSidebar />
       </div>
+      <DiceRoller />
     </>
   );
 }

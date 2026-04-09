@@ -786,54 +786,58 @@ export default function CharacterSheet() {
         </div>
       )}
 
+      {/* Vitals — full width above both columns */}
+      <div className="sheet-vitals-panel">
+        <div className="vitals-row">
+          <div className="vitals-group-left">
+            <Vital
+              label="Life"
+              current={character.healthCurrent ?? 0}
+              max={character.healthMax ?? 0}
+              color="var(--vital-life)"
+              onChangeCurrent={(d) => updateStat("healthCurrent", d)}
+              onOpenPanel={() => !sheetReadOnly && setVitalPanel("life")}
+              disabled={!canEditVitals}
+            />
+            <Vital
+              label="Energy"
+              current={character.energyCurrent ?? 0}
+              max={character.energyMax ?? 0}
+              color="var(--vital-energy)"
+              onChangeCurrent={(d) => updateStat("energyCurrent", d)}
+              onOpenPanel={() => !sheetReadOnly && setVitalPanel("energy")}
+              disabled={!canEditVitals}
+            />
+          </div>
+          <div className="vitals-group-right">
+            <VitalSimple
+              label="Items"
+              display={`${character.itemPointsCurrent ?? 3} / ${character.itemPointsMax ?? 3}`}
+              onOpenPanel={() => !sheetReadOnly && setVitalPanel("items")}
+              onDec={() => updateStat("itemPointsCurrent", -1)}
+              onInc={() => updateStat("itemPointsCurrent", 1)}
+              disabled={!canEditVitals}
+            />
+            <VitalSimple
+              label="Gold"
+              display={character.gold ?? 0}
+              onOpenPanel={() => !sheetReadOnly && setVitalPanel("gold")}
+              onDec={() => updateStat("gold", -1)}
+              onInc={() => updateStat("gold", 1)}
+              disabled={!canEditVitals}
+            />
+          </div>
+        </div>
+        {!sheetReadOnly && (
+          <button className="btn-secondary vitals-reset-btn" onClick={handleReset}>
+            Reset
+          </button>
+        )}
+      </div>
+
       <div className="sheet-body">
         {/* ── Left column ──────────────────────── */}
         <div className="sheet-col-left">
-
-          {/* Vitals */}
-          <div className="sheet-vitals-panel">
-            <div className="vitals-row">
-              <Vital
-                label="Life"
-                current={character.healthCurrent ?? 0}
-                max={character.healthMax ?? 0}
-                color="var(--vital-life)"
-                onChangeCurrent={(d) => updateStat("healthCurrent", d)}
-                onOpenPanel={() => !sheetReadOnly && setVitalPanel("life")}
-                disabled={!canEditVitals}
-              />
-              <Vital
-                label="Energy"
-                current={character.energyCurrent ?? 0}
-                max={character.energyMax ?? 0}
-                color="var(--vital-energy)"
-                onChangeCurrent={(d) => updateStat("energyCurrent", d)}
-                onOpenPanel={() => !sheetReadOnly && setVitalPanel("energy")}
-                disabled={!canEditVitals}
-              />
-              <VitalSimple
-                label="Items"
-                display={`${character.itemPointsCurrent ?? 3} / ${character.itemPointsMax ?? 3}`}
-                onOpenPanel={() => !sheetReadOnly && setVitalPanel("items")}
-                onDec={() => updateStat("itemPointsCurrent", -1)}
-                onInc={() => updateStat("itemPointsCurrent", 1)}
-                disabled={!canEditVitals}
-              />
-              <VitalSimple
-                label="Gold"
-                display={character.gold ?? 0}
-                onOpenPanel={() => !sheetReadOnly && setVitalPanel("gold")}
-                onDec={() => updateStat("gold", -1)}
-                onInc={() => updateStat("gold", 1)}
-                disabled={!canEditVitals}
-              />
-            </div>
-            {!sheetReadOnly && (
-              <button className="btn-secondary vitals-reset-btn" onClick={handleReset}>
-                Reset
-              </button>
-            )}
-          </div>
 
           {/* Attributes */}
           <div className="review-panel review-panel-attrs">
