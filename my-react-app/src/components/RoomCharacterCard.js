@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import dmTokenImg from "../assets/dm-token.png";
 
 export default function RoomCharacterCard({ card, isOwn }) {
   const navigate = useNavigate();
@@ -15,8 +16,8 @@ export default function RoomCharacterCard({ card, isOwn }) {
       style={isGM ? { cursor: "default" } : undefined}
     >
       <div className="room-card-header">
-        {card.imageUrl ? (
-          <img src={card.imageUrl} alt={card.name} className="room-card-avatar" />
+        {(card.imageUrl || isGM) ? (
+          <img src={isGM ? dmTokenImg : card.imageUrl} alt={card.name} className="room-card-avatar" />
         ) : (
           <div className="room-card-avatar room-card-avatar-placeholder" />
         )}

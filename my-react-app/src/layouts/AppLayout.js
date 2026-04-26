@@ -1,6 +1,6 @@
 import NavBar from "../components/NavBar";
 import RoomSidebar from "../components/RoomSidebar";
-import DiceRoller from "../components/DiceRoller";
+import DiceRoller from "../components/DiceRoller3D";
 import { useRoom } from "../context/RoomContext";
 
 export default function AppLayout({ children }) {

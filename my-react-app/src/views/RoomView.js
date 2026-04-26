@@ -4,6 +4,8 @@ import { useAuth } from "../auth/AuthContext";
 import { useRoom } from "../context/RoomContext";
 import { updateRoomCharacterStats } from "../api/roomApi";
 import NavBar from "../components/NavBar";
+import DiceRoller from "../components/DiceRoller3D";
+import dmTokenImg from "../assets/dm-token.png";
 
 export default function RoomView() {
   const { room, isOwner, leaveRoom } = useRoom();
@@ -49,6 +51,7 @@ export default function RoomView() {
           ))}
         </div>
       </div>
+      <DiceRoller />
     </>
   );
 }
@@ -91,8 +94,8 @@ function MemberVitalCard({ card, canEdit, roomId }) {
   return (
     <div className={`room-member-card${isGM ? " room-member-card-gm" : ""}`}>
       <div className="room-member-card-header">
-        {card.imageUrl ? (
-          <img src={card.imageUrl} alt={card.name} className="room-member-avatar" />
+        {(card.imageUrl || isGM) ? (
+          <img src={isGM ? dmTokenImg : card.imageUrl} alt={card.name} className="room-member-avatar" />
         ) : (
           <div className="room-member-avatar room-member-avatar-placeholder" />
         )}

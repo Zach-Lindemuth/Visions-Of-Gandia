@@ -14,6 +14,9 @@ export function RoomProvider({ children }) {
   const authRef = useRef(auth);
   authRef.current = auth;
 
+  /* Dice roll event listeners — DiceRoller3D subscribes via on/offDiceRolled */
+  const diceRollListeners = useRef(new Set());
+
   const isOwner = room != null && room.ownerId === auth?.userId;
 
   // Build and start a hub connection
@@ -65,6 +68,10 @@ export function RoomProvider({ children }) {
       });
     });
 
+    conn.on("DiceRolled", (payload) => {
+      diceRollListeners.current.forEach((fn) => fn(payload));
+    });
+
     conn.on("Error", (message) => {
       console.error("RoomHub error:", message);
     });
@@ -114,8 +121,24 @@ export function RoomProvider({ children }) {
 
   const clearChangedCharacter = useCallback(() => setChangedCharacterId(null), []);
 
+  const broadcastDiceRoll = useCallback(async (rollData) => {
+    if (!connectionRef.current) return;
+    try {
+      await connectionRef.current.invoke("BroadcastDiceRoll", rollData);
+    } catch (err) {
+      console.error("Failed to broadcast dice roll:", err);
+    }
+  }, []);
+
+  const onDiceRolled = useCallback((fn) => { diceRollListeners.current.add(fn); }, []);
+  const offDiceRolled = useCallback((fn) => { diceRollListeners.current.delete(fn); }, []);
+
   return (
-    <RoomContext.Provider value={{ room, isOwner, createRoom, joinRoom, leaveRoom, changedCharacterId, clearChangedCharacter }}>
+    <RoomContext.Provider value={{
+      room, isOwner, createRoom, joinRoom, leaveRoom,
+      changedCharacterId, clearChangedCharacter,
+      broadcastDiceRoll, onDiceRolled, offDiceRolled,
+    }}>
       {children}
     </RoomContext.Provider>
   );
