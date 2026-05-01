@@ -170,7 +170,6 @@ export default function Step2OriginVision({ data, update, next, back }) {
     setProfConfirmed(true);
     const desc = confirmedDesc ? confirmedDesc.descriptor : confirmedCustomDesc;
     update({ descriptor: desc, profession: prof });
-    next();
   };
 
   const changeProfession = () => {
@@ -388,10 +387,7 @@ export default function Step2OriginVision({ data, update, next, back }) {
         <button className="btn-secondary" onClick={back}>
           ← Back
         </button>
-        <button
-          onClick={descConfirmed && profCanConfirm && !profConfirmed ? confirmProfession : next}
-          disabled={!descConfirmed || (!profConfirmed && !profCanConfirm)}
-        >Next →</button>
+        <button onClick={next} disabled={!descConfirmed || !profConfirmed}>Next →</button>
       </div>
 
       {/* ══ PROFESSION CHOICE MODAL ══════════════════════════════════════════ */}

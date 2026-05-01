@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../../auth/AuthContext";
 import { getArcana, getTechniques } from "../../../api/characterApi";
 import PaginatedPickerList from "../PaginatedPickerList";
@@ -11,8 +11,6 @@ export default function Step5Powers({ data, update, next, back }) {
   const [techniques, setTechniques] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("arcana");
-  const [shaking, setShaking] = useState(false);
-  const shakeTimer = useRef(null);
 
   useEffect(() => {
     Promise.all([
@@ -44,19 +42,6 @@ export default function Step5Powers({ data, update, next, back }) {
     } else if (total < CREATION_LIMIT) {
       update({ techniqueIds: [...data.techniqueIds, id] });
     }
-  };
-
-  const tryNext = () => {
-    if (total !== CREATION_LIMIT) {
-      clearTimeout(shakeTimer.current);
-      setShaking(false);
-      requestAnimationFrame(() => {
-        setShaking(true);
-        shakeTimer.current = setTimeout(() => setShaking(false), 450);
-      });
-      return;
-    }
-    next();
   };
 
   // All selected powers shown at top regardless of active tab
@@ -91,7 +76,7 @@ export default function Step5Powers({ data, update, next, back }) {
       <div className="wizard-step-header">
         <h2>Powers</h2>
         {hasData && (
-          <div className={`selection-badge ${atLimit ? "done" : ""} ${shaking ? "shake" : ""}`}>
+          <div className={`selection-badge ${atLimit ? "done" : ""}`}>
             {total} / {CREATION_LIMIT} selected
           </div>
         )}
@@ -171,7 +156,7 @@ export default function Step5Powers({ data, update, next, back }) {
 
       <div className="wizard-nav">
         <button className="btn-secondary" onClick={back}>← Back</button>
-        <button onClick={tryNext}>Next →</button>
+        <button onClick={next} disabled={!atLimit}>Next →</button>
       </div>
     </div>
   );

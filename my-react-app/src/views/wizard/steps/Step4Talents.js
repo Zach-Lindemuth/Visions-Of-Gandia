@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../../auth/AuthContext";
 import { getTalents } from "../../../api/characterApi";
 import PaginatedPickerList from "../PaginatedPickerList";
@@ -9,8 +9,6 @@ export default function Step4Talents({ data, update, next, back }) {
   const { auth } = useAuth();
   const [talents, setTalents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [shaking, setShaking] = useState(false);
-  const shakeTimer = useRef(null);
 
   useEffect(() => {
     getTalents(auth.token)
@@ -27,19 +25,6 @@ export default function Step4Talents({ data, update, next, back }) {
     }
   };
 
-  const tryNext = () => {
-    if (data.talentIds.length !== CREATION_LIMIT) {
-      clearTimeout(shakeTimer.current);
-      setShaking(false);
-      requestAnimationFrame(() => {
-        setShaking(true);
-        shakeTimer.current = setTimeout(() => setShaking(false), 450);
-      });
-      return;
-    }
-    next();
-  };
-
   const hasData = talents.length > 0;
   const atLimit = data.talentIds.length === CREATION_LIMIT;
 
@@ -54,7 +39,7 @@ export default function Step4Talents({ data, update, next, back }) {
       <div className="wizard-step-header">
         <h2>Talents</h2>
         {hasData && (
-          <div className={`selection-badge ${atLimit ? "done" : ""} ${shaking ? "shake" : ""}`}>
+          <div className={`selection-badge ${atLimit ? "done" : ""}`}>
             {data.talentIds.length} / {CREATION_LIMIT} selected
           </div>
         )}
@@ -103,7 +88,7 @@ export default function Step4Talents({ data, update, next, back }) {
 
       <div className="wizard-nav">
         <button className="btn-secondary" onClick={back}>← Back</button>
-        <button onClick={tryNext}>Next →</button>
+        <button onClick={next} disabled={!atLimit}>Next →</button>
       </div>
     </div>
   );

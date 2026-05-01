@@ -39,15 +39,8 @@ export default function PaginatedPickerList({
   renderCardContent,
   pageSize = DEFAULT_PAGE_SIZE,
 }) {
-  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearchQuery(searchInput);
-    setPage(1);
-  };
 
   const filtered = searchQuery
     ? items.filter(
@@ -64,15 +57,17 @@ export default function PaginatedPickerList({
 
   return (
     <div className="picker-list-container">
-      <form className="talent-search" onSubmit={handleSearch}>
+      <div className="talent-search">
         <input
           type="text"
           placeholder="Search by name or description..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
         />
-        <button type="submit">Search</button>
-      </form>
+      </div>
 
       <div className="picker-list-scroll">
         {loading ? (
