@@ -1000,6 +1000,43 @@ label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--
   background: transparent;
 }
 
+/* ── Shield sunder controls ── */
+.shield-sunder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg, transparent);
+}
+.shield-sunder-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.shield-sunder-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.shield-sunder-value {
+  min-width: 1.5rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-color);
+}
+.shield-sunder-reset {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  margin-left: 0.25rem;
+}
+
 /* ── Quality picker card styling ── */
 .quality-picker-card-inner { width: 100%; }
 .quality-picker-card-inner.quality-selected {

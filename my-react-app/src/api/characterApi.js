@@ -73,6 +73,11 @@ export async function getArmorTypes(token) {
   return handleResponse(res);
 }
 
+export async function getShieldTypes(token) {
+  const res = await fetch(`${API_BASE}/equipment-types/shields`, { headers: authHeaders(token) });
+  return handleResponse(res);
+}
+
 // ── Character associations ───────────────────────────────
 export async function addTalentToCharacter(token, characterId, talentId) {
   const res = await fetch(`${API_BASE}/characters/${characterId}/talents/${talentId}`, {
@@ -165,6 +170,65 @@ export async function createArmor(token, characterId, data) {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function createShield(token, characterId, data) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/shields`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteShield(token, characterId, shieldId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/shields/${shieldId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function setShieldSunderMax(token, characterId, shieldId, sunderMax) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/shields/${shieldId}/sunder-max`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ sunderMax }),
+  });
+  return handleResponse(res);
+}
+
+export async function resetShieldSunder(token, characterId, shieldId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/shields/${shieldId}/sunder/reset`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function addQualityToShield(token, characterId, shieldId, qualityId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/shields/${shieldId}/qualities/${qualityId}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function removeQualityFromShield(token, characterId, shieldId, qualityId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/shields/${shieldId}/qualities/${qualityId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+export async function equipOffHandShield(token, characterId, shieldInstanceId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/equipment/off-hand/shield`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ shieldInstanceId }),
   });
   return handleResponse(res);
 }

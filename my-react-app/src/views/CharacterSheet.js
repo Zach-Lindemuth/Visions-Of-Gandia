@@ -16,10 +16,13 @@ import {
   getQualities,
   getWeaponTypes,
   getArmorTypes,
+  getShieldTypes,
   createWeapon,
   createArmor,
+  createShield,
   deleteWeapon,
   deleteArmor,
+  deleteShield,
   addTalentToCharacter,
   addArcanaToCharacter,
   addTechniqueToCharacter,
@@ -33,9 +36,14 @@ import {
   removeQualityFromWeapon,
   addQualityToArmor,
   removeQualityFromArmor,
+  addQualityToShield,
+  removeQualityFromShield,
   equipMainHand,
   equipArmor,
   equipOffHandWeapon,
+  equipOffHandShield,
+  setShieldSunderMax,
+  resetShieldSunder,
   unequipSlot,
   batchSetInventory,
 } from "../api/characterApi";
@@ -332,27 +340,56 @@ export default function CharacterSheet() {
     });
   };
 
+  // ── Slot helpers ───────────────────────────────────────
+
+  // Returns the equipped item in a slot ("mainHand" | "offHand" | "armor"),
+  // collapsing offHand → weapon-or-shield.
+  const getSlotItem = (slot) => {
+    if (slot === "armor") return equipment?.armor ?? null;
+    if (slot === "mainHand") return equipment?.mainHand ?? null;
+    if (slot === "offHand") return equipment?.offHand ?? equipment?.offHandShield ?? null;
+    return null;
+  };
+
+  const getSlotKind = (slot) => {
+    if (slot === "armor") return equipment?.armor ? "armor" : null;
+    if (slot === "mainHand") return equipment?.mainHand ? "weapon" : null;
+    if (slot === "offHand") {
+      if (equipment?.offHand) return "weapon";
+      if (equipment?.offHandShield) return "shield";
+    }
+    return null;
+  };
+
+  const slotLabelForKind = (kind) =>
+    kind === "armor" ? "Armor" : kind === "shield" ? "Shield" : "Weapon";
+
   // ── Delete equipped item ───────────────────────────────
 
   const handleDeleteEquipment = (slot) => {
-    const item = equipment?.[slot];
-    if (!item) return;
-    setConfirmDeleteEquip({ slot, name: item.name || (slot === "armor" ? "Armor" : "Weapon") });
+    const item = getSlotItem(slot);
+    const kind = getSlotKind(slot);
+    if (!item || !kind) return;
+    setConfirmDeleteEquip({ slot, kind, name: item.name || slotLabelForKind(kind) });
   };
 
   const handleConfirmDeleteEquip = async () => {
     if (!confirmDeleteEquip) return;
-    const { slot } = confirmDeleteEquip;
-    const item = equipment?.[slot];
+    const { slot, kind } = confirmDeleteEquip;
+    const item = getSlotItem(slot);
     if (!item) return;
     setBusy(true);
     try {
-      if (slot === "armor") {
+      if (kind === "armor") {
         await deleteArmor(auth.token, id, item.armorInstanceId);
+        setEquipment((prev) => ({ ...prev, armor: null }));
+      } else if (kind === "shield") {
+        await deleteShield(auth.token, id, item.shieldInstanceId);
+        setEquipment((prev) => ({ ...prev, offHandShield: null }));
       } else {
         await deleteWeapon(auth.token, id, item.weaponInstanceId);
+        setEquipment((prev) => ({ ...prev, [slot]: null }));
       }
-      setEquipment((prev) => ({ ...prev, [slot]: null }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -383,14 +420,16 @@ export default function CharacterSheet() {
   const canDropOnEquipSlot = (slot) => {
     if (!dragging || dragging.source !== "inventory") return false;
     if (slot === "armor") return dragging.itemType === "armor";
-    return dragging.itemType === "weapon";
+    if (slot === "mainHand") return dragging.itemType === "weapon";
+    if (slot === "offHand") return dragging.itemType === "weapon" || dragging.itemType === "shield";
+    return false;
   };
 
   const handleEquipmentDragStart = (e, slot) => {
-    const item = equipment?.[slot];
-    if (!item || busy) { e.preventDefault(); return; }
-    const itemType = slot === "armor" ? "armor" : "weapon";
-    setDragging({ source: "equipped", slot, itemType, item });
+    const item = getSlotItem(slot);
+    const kind = getSlotKind(slot);
+    if (!item || !kind || busy) { e.preventDefault(); return; }
+    setDragging({ source: "equipped", slot, itemType: kind, item });
     e.dataTransfer.effectAllowed = "move";
     // Use the dragged element itself as the ghost image so it's always visible
     e.dataTransfer.setDragImage(e.currentTarget, e.nativeEvent.offsetX, e.nativeEvent.offsetY);
@@ -428,40 +467,45 @@ export default function CharacterSheet() {
     if (!canDropOnEquipSlot(targetSlot)) return;
     const sourceSlotIndex = dragging.slotIndex;
     const sourceSlotData = dragging.item; // the inventory slot object
+    const draggedKind = dragging.itemType;
     setDragging(null);
     setDragOverTarget(null);
 
     setBusy(true);
     try {
+      // Track the previously-equipped item so we can swap it back into inventory
+      const prevSlotItem = getSlotItem(targetSlot);
+      const prevSlotKind = getSlotKind(targetSlot);
+
       let updatedEquip;
       if (targetSlot === "armor") {
         const newArmor = sourceSlotData.armor;
-        const oldArmor = equipment?.armor;
         updatedEquip = await equipArmor(auth.token, id, newArmor.armorInstanceId);
-        setEquipment(updatedEquip);
-        if (oldArmor) {
-          const updatedSlot = await updateInventorySlot(auth.token, id, sourceSlotIndex, { armorInstanceId: oldArmor.armorInstanceId });
-          setInventory((prev) => ({ ...prev, slots: prev.slots.map((s) => s.slotIndex === sourceSlotIndex ? updatedSlot : s) }));
-        } else {
-          await clearInventorySlot(auth.token, id, sourceSlotIndex);
-          setInventory((prev) => ({ ...prev, slots: prev.slots.map((s) => s.slotIndex === sourceSlotIndex ? { slotIndex: s.slotIndex, weapon: null, armor: null, shield: null, genericItemDescription: null } : s) }));
-        }
-      } else {
+      } else if (targetSlot === "mainHand") {
         const newWeapon = sourceSlotData.weapon;
-        const oldWeapon = equipment?.[targetSlot];
-        if (targetSlot === "mainHand") {
-          updatedEquip = await equipMainHand(auth.token, id, newWeapon.weaponInstanceId);
+        updatedEquip = await equipMainHand(auth.token, id, newWeapon.weaponInstanceId);
+      } else {
+        // offHand — could be weapon or shield based on dragged item
+        if (draggedKind === "shield") {
+          const newShield = sourceSlotData.shield;
+          updatedEquip = await equipOffHandShield(auth.token, id, newShield.shieldInstanceId);
         } else {
+          const newWeapon = sourceSlotData.weapon;
           updatedEquip = await equipOffHandWeapon(auth.token, id, newWeapon.weaponInstanceId);
         }
-        setEquipment(updatedEquip);
-        if (oldWeapon) {
-          const updatedSlot = await updateInventorySlot(auth.token, id, sourceSlotIndex, { weaponInstanceId: oldWeapon.weaponInstanceId });
-          setInventory((prev) => ({ ...prev, slots: prev.slots.map((s) => s.slotIndex === sourceSlotIndex ? updatedSlot : s) }));
-        } else {
-          await clearInventorySlot(auth.token, id, sourceSlotIndex);
-          setInventory((prev) => ({ ...prev, slots: prev.slots.map((s) => s.slotIndex === sourceSlotIndex ? { slotIndex: s.slotIndex, weapon: null, armor: null, shield: null, genericItemDescription: null } : s) }));
-        }
+      }
+      setEquipment(updatedEquip);
+
+      if (prevSlotItem && prevSlotKind) {
+        const swapBack =
+          prevSlotKind === "armor" ? { armorInstanceId: prevSlotItem.armorInstanceId }
+          : prevSlotKind === "shield" ? { shieldInstanceId: prevSlotItem.shieldInstanceId }
+          : { weaponInstanceId: prevSlotItem.weaponInstanceId };
+        const updatedSlot = await updateInventorySlot(auth.token, id, sourceSlotIndex, swapBack);
+        setInventory((prev) => ({ ...prev, slots: prev.slots.map((s) => s.slotIndex === sourceSlotIndex ? updatedSlot : s) }));
+      } else {
+        await clearInventorySlot(auth.token, id, sourceSlotIndex);
+        setInventory((prev) => ({ ...prev, slots: prev.slots.map((s) => s.slotIndex === sourceSlotIndex ? { slotIndex: s.slotIndex, weapon: null, armor: null, shield: null, genericItemDescription: null } : s) }));
       }
     } catch (err) {
       setError(err.message);
@@ -506,7 +550,11 @@ export default function CharacterSheet() {
       setBusy(true);
       try {
         await unequipSlot(auth.token, id, EQUIP_SLOT_API[slot]);
-        setEquipment((prev) => ({ ...prev, [slot]: null }));
+        const equipField =
+          itemType === "armor" ? "armor"
+          : itemType === "shield" ? "offHandShield"
+          : slot;
+        setEquipment((prev) => ({ ...prev, [equipField]: null }));
         const putData =
           itemType === "armor" ? { armorInstanceId: item.armorInstanceId }
           : itemType === "shield" ? { shieldInstanceId: item.shieldInstanceId }
@@ -560,16 +608,19 @@ export default function CharacterSheet() {
   // ── Equipment quality picker ───────────────────────────
 
   const openEquipmentQualityPicker = (slot) => {
-    const item = equipment?.[slot];
-    if (!item) return;
-    const itemId = slot === "armor" ? item.armorInstanceId : item.weaponInstanceId;
+    const item = getSlotItem(slot);
+    const kind = getSlotKind(slot);
+    if (!item || !kind) return;
+    const itemId =
+      kind === "armor" ? item.armorInstanceId
+      : kind === "shield" ? item.shieldInstanceId
+      : item.weaponInstanceId;
     const categoryTag =
-      slot === "armor"
-        ? "Armor"
-        : item.weaponType?.tag?.includes("FOCUS")
-        ? "Focus"
-        : "Weapon";
-    setQualityPickerTarget({ slot, itemId });
+      kind === "armor" ? "Armor"
+      : kind === "shield" ? "Shield"
+      : item.weaponType?.tag?.includes("FOCUS") ? "Focus"
+      : "Weapon";
+    setQualityPickerTarget({ slot, kind, itemId });
     setActiveTagFilters([]);
     setQualitiesLoading(true);
     getQualities(auth.token, [categoryTag])
@@ -598,14 +649,23 @@ export default function CharacterSheet() {
     );
   };
 
+  // Returns the equipment-state property name for an item kind in a slot.
+  // offHand can hold either a weapon (offHand) or a shield (offHandShield).
+  const equipmentField = (slot, kind) => {
+    if (kind === "armor") return "armor";
+    if (kind === "shield") return "offHandShield";
+    return slot; // weapon → mainHand or offHand
+  };
+
   const toggleEquipmentQuality = async (qualityId) => {
     if (!qualityPickerTarget) return;
-    const { slot, itemId } = qualityPickerTarget;
-    const item = equipment?.[slot];
+    const { slot, kind, itemId } = qualityPickerTarget;
+    const field = equipmentField(slot, kind);
+    const item = equipment?.[field];
     const already = item?.qualities?.some((q) => q.qualityId === qualityId);
     setBusy(true);
     try {
-      if (slot === "armor") {
+      if (kind === "armor") {
         if (already) {
           await removeQualityFromArmor(auth.token, id, itemId, qualityId);
           setEquipment((prev) => ({
@@ -615,6 +675,17 @@ export default function CharacterSheet() {
         } else {
           const updated = await addQualityToArmor(auth.token, id, itemId, qualityId);
           setEquipment((prev) => ({ ...prev, armor: updated }));
+        }
+      } else if (kind === "shield") {
+        if (already) {
+          await removeQualityFromShield(auth.token, id, itemId, qualityId);
+          setEquipment((prev) => ({
+            ...prev,
+            offHandShield: { ...prev.offHandShield, qualities: prev.offHandShield.qualities.filter((q) => q.qualityId !== qualityId) },
+          }));
+        } else {
+          const updated = await addQualityToShield(auth.token, id, itemId, qualityId);
+          setEquipment((prev) => ({ ...prev, offHandShield: updated }));
         }
       } else {
         if (already) {
@@ -636,16 +707,26 @@ export default function CharacterSheet() {
   };
 
   const handleRemoveEquipmentQuality = async (slot, qualityId) => {
-    const item = equipment?.[slot];
-    const itemId = slot === "armor" ? item?.armorInstanceId : item?.weaponInstanceId;
-    if (!itemId) return;
+    const item = getSlotItem(slot);
+    const kind = getSlotKind(slot);
+    if (!item || !kind) return;
+    const itemId =
+      kind === "armor" ? item.armorInstanceId
+      : kind === "shield" ? item.shieldInstanceId
+      : item.weaponInstanceId;
     setBusy(true);
     try {
-      if (slot === "armor") {
+      if (kind === "armor") {
         await removeQualityFromArmor(auth.token, id, itemId, qualityId);
         setEquipment((prev) => ({
           ...prev,
           armor: { ...prev.armor, qualities: prev.armor.qualities.filter((q) => q.qualityId !== qualityId) },
+        }));
+      } else if (kind === "shield") {
+        await removeQualityFromShield(auth.token, id, itemId, qualityId);
+        setEquipment((prev) => ({
+          ...prev,
+          offHandShield: { ...prev.offHandShield, qualities: prev.offHandShield.qualities.filter((q) => q.qualityId !== qualityId) },
         }));
       } else {
         await removeQualityFromWeapon(auth.token, id, itemId, qualityId);
@@ -654,6 +735,38 @@ export default function CharacterSheet() {
           [slot]: { ...prev[slot], qualities: prev[slot].qualities.filter((q) => q.qualityId !== qualityId) },
         }));
       }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── Shield sunder handlers ─────────────────────────────
+
+  const handleShieldSunderDelta = async (delta) => {
+    const shield = equipment?.offHandShield;
+    if (!shield) return;
+    const newMax = Math.max(0, (shield.sunderMax ?? 0) + delta);
+    if (newMax === shield.sunderMax) return;
+    setBusy(true);
+    try {
+      const updated = await setShieldSunderMax(auth.token, id, shield.shieldInstanceId, newMax);
+      setEquipment((prev) => ({ ...prev, offHandShield: updated }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleShieldSunderReset = async () => {
+    const shield = equipment?.offHandShield;
+    if (!shield) return;
+    setBusy(true);
+    try {
+      const updated = await resetShieldSunder(auth.token, id, shield.shieldInstanceId);
+      setEquipment((prev) => ({ ...prev, offHandShield: updated }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -770,7 +883,7 @@ export default function CharacterSheet() {
       {confirmDeleteEquip && (
         <div className="modal-overlay" onClick={() => !busy && setConfirmDeleteEquip(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">Delete {confirmDeleteEquip.slot === "armor" ? "Armor" : "Weapon"}?</h2>
+            <h2 className="modal-title">Delete {slotLabelForKind(confirmDeleteEquip.kind)}?</h2>
             <p style={{ margin: "0 0 6px" }}>
               <strong>{confirmDeleteEquip.name}</strong> will be permanently deleted.
             </p>
@@ -1030,15 +1143,35 @@ export default function CharacterSheet() {
               />
             </div>
           ) : equipment?.offHandShield ? (
-            <div className="review-equip-item">
-              <strong>{equipment.offHandShield.name}</strong>
-              {equipment.offHandShield.shieldType && (
-                <span className="muted">{equipment.offHandShield.shieldType.name}</span>
-              )}
+            <div className={dragging?.source === "equipped" && dragging.slot === "offHand" ? "equip-dragging" : ""}>
+              <div
+                className="review-equip-item equip-name-draggable"
+                draggable
+                onDragStart={(e) => handleEquipmentDragStart(e, "offHand")}
+                onDragEnd={handleDragEnd}
+                title="Drag to inventory"
+              >
+                <strong>{equipment.offHandShield.name}</strong>
+                {equipment.offHandShield.shieldType && (
+                  <span className="muted">{equipment.offHandShield.shieldType.name}</span>
+                )}
+              </div>
+              <ShieldSunderControls
+                shield={equipment.offHandShield}
+                onDelta={handleShieldSunderDelta}
+                onReset={handleShieldSunderReset}
+                disabled={busy}
+              />
+              <EquipmentQualityList
+                qualities={equipment.offHandShield.qualities}
+                onRemove={(qId) => handleRemoveEquipmentQuality("offHand", qId)}
+                onAdd={() => openEquipmentQualityPicker("offHand")}
+                disabled={busy}
+              />
             </div>
           ) : (
             <button className="equip-slot-empty-btn" onClick={() => setCreateEquipSlot("offHand")} disabled={busy}>
-              + New Weapon
+              + New Item
             </button>
           )}
         </div>
@@ -1389,6 +1522,43 @@ function InventorySlot({
 
 const QUALITY_CATEGORY_TAGS = ["Weapon", "Armor", "Shield", "Focus"];
 
+function ShieldSunderControls({ shield, onDelta, onReset, disabled }) {
+  const value = shield?.sunderMax ?? 0;
+  const def = shield?.shieldType?.defaultSunderMax;
+  return (
+    <div className="shield-sunder-row">
+      <span className="shield-sunder-label">Sunder</span>
+      <div className="shield-sunder-controls">
+        <button
+          className="attr-btn"
+          onClick={() => onDelta(-1)}
+          disabled={disabled || value <= 0}
+          title="Decrease sunder"
+        >
+          −
+        </button>
+        <span className="shield-sunder-value">{value}</span>
+        <button
+          className="attr-btn"
+          onClick={() => onDelta(1)}
+          disabled={disabled}
+          title="Increase sunder"
+        >
+          +
+        </button>
+        <button
+          className="btn-secondary shield-sunder-reset"
+          onClick={onReset}
+          disabled={disabled || (def != null && value === def)}
+          title={def != null ? `Reset to default (${def})` : "Reset to default"}
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function EquipmentQualityList({ qualities, onRemove, onAdd, disabled }) {
   return (
     <div className="equip-sheet-quality-section">
@@ -1441,16 +1611,19 @@ function EquipmentQualityPickerModal({
   busy,
 }) {
   let title = "Select Qualities";
-  if (target.slot === "armor" && equipment?.armor) {
-    title = `${equipment.armor.armorType?.name ?? "Armor"} Qualities`;
-  } else if (equipment?.[target.slot]) {
-    title = `${equipment[target.slot].weaponType?.name ?? "Weapon"} Qualities`;
+  let item = null;
+  if (target.kind === "armor") {
+    item = equipment?.armor;
+    title = `${item?.armorType?.name ?? "Armor"} Qualities`;
+  } else if (target.kind === "shield") {
+    item = equipment?.offHandShield;
+    title = `${item?.shieldType?.name ?? "Shield"} Qualities`;
+  } else {
+    item = equipment?.[target.slot];
+    title = `${item?.weaponType?.name ?? "Weapon"} Qualities`;
   }
 
-  const selectedIds =
-    target.slot === "armor"
-      ? (equipment?.armor?.qualities ?? []).map((q) => q.qualityId)
-      : (equipment?.[target.slot]?.qualities ?? []).map((q) => q.qualityId);
+  const selectedIds = (item?.qualities ?? []).map((q) => q.qualityId);
 
   return (
     <PickerModal
@@ -1514,11 +1687,14 @@ function EquipmentQualityPickerModal({
 // ── Equip Slot Create Modal ───────────────────────────────────────────────────
 
 function EquipSlotCreateModal({ slot, characterId, token, onSuccess, onClose }) {
-  const category = slot === "armor" ? "armor" : "weapon";
+  // For offHand the user must first pick weapon vs shield; for other slots the
+  // category is implicit.
+  const fixedCategory = slot === "armor" ? "armor" : slot === "mainHand" ? "weapon" : null;
   const slotLabel = slot === "mainHand" ? "Main Hand" : slot === "offHand" ? "Off Hand" : "Armor";
 
+  const [category, setCategory] = useState(fixedCategory); // 'weapon' | 'armor' | 'shield' | null
   const [types, setTypes] = useState([]);
-  const [typesLoading, setTypesLoading] = useState(true);
+  const [typesLoading, setTypesLoading] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState(null);
   const [name, setName] = useState("");
   const [qualityIds, setQualityIds] = useState([]);
@@ -1530,19 +1706,33 @@ function EquipSlotCreateModal({ slot, characterId, token, onSuccess, onClose }) 
   const [activeTagFilters, setActiveTagFilters] = useState([]);
 
   useEffect(() => {
-    const fn = category === "armor" ? getArmorTypes : getWeaponTypes;
+    if (!category) return;
+    setTypesLoading(true);
+    setTypes([]);
+    setSelectedTypeId(null);
+    const fn =
+      category === "armor" ? getArmorTypes
+      : category === "shield" ? getShieldTypes
+      : getWeaponTypes;
     fn(token)
       .then((data) => setTypes(Array.isArray(data) ? data : []))
       .catch(() => setTypes([]))
       .finally(() => setTypesLoading(false));
   }, [category, token]);
 
-  const selectedType = types.find((t) =>
-    category === "weapon" ? t.weaponTypeId === selectedTypeId : t.armorTypeId === selectedTypeId
-  );
+  const typeIdField =
+    category === "weapon" ? "weaponTypeId"
+    : category === "shield" ? "shieldTypeId"
+    : "armorTypeId";
+
+  const selectedType = types.find((t) => t[typeIdField] === selectedTypeId);
 
   const openQualityPicker = () => {
-    const tag = selectedType?.tag?.includes("FOCUS") ? "Focus" : category === "weapon" ? "Weapon" : "Armor";
+    const tag =
+      category === "shield" ? "Shield"
+      : category === "armor" ? "Armor"
+      : selectedType?.tag?.includes("FOCUS") ? "Focus"
+      : "Weapon";
     setQualitiesLoading(true);
     getQualities(token, [tag])
       .then((q) => setAllQualities(Array.isArray(q) ? q : []))
@@ -1584,6 +1774,14 @@ function EquipSlotCreateModal({ slot, characterId, token, onSuccess, onClose }) 
         } else {
           updatedEquip = await equipOffHandWeapon(token, characterId, created.weaponInstanceId);
         }
+      } else if (category === "shield") {
+        const created = await createShield(token, characterId, {
+          shieldTypeId: selectedTypeId,
+          name: name.trim() || selectedType?.name || "",
+          sunderMax: 0, // server applies type default
+          qualityIds,
+        });
+        updatedEquip = await equipOffHandShield(token, characterId, created.shieldInstanceId);
       } else {
         const created = await createArmor(token, characterId, {
           armorTypeId: selectedTypeId,
@@ -1599,84 +1797,118 @@ function EquipSlotCreateModal({ slot, characterId, token, onSuccess, onClose }) 
     }
   };
 
+  const headingLabel =
+    !category ? `Equip Off Hand`
+    : category === "shield" ? "New Shield"
+    : category === "armor" ? "New Armor"
+    : "New Weapon";
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="inv-item-picker-modal" onClick={(e) => e.stopPropagation()}>
         <div className="inv-item-picker-header">
-          <h2>New {category === "weapon" ? "Weapon" : "Armor"}</h2>
-          <button className="picker-modal-close" onClick={onClose}>&times;</button>
-        </div>
-
-        <div className="inv-item-configure">
-          {typesLoading ? (
-            <p className="muted">Loading types...</p>
-          ) : (
-            <>
-              <label className="inv-item-configure-label">Type</label>
-              <div className="inv-type-grid">
-                {types.map((t) => {
-                  const typeId = category === "weapon" ? t.weaponTypeId : t.armorTypeId;
-                  return (
-                    <button
-                      key={typeId}
-                      className={`inv-type-card${selectedTypeId === typeId ? " selected" : ""}`}
-                      onClick={() => setSelectedTypeId(typeId)}
-                    >
-                      <strong>{t.name}</strong>
-                      {t.description && <span>{t.description}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <label className="inv-item-configure-label" style={{ marginTop: "0.9rem" }}>
-                Custom name <span className="muted">(optional)</span>
-              </label>
-              <input
-                className="inv-item-input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={selectedType?.name ?? `e.g. My ${category === "weapon" ? "Weapon" : "Armor"}`}
-              />
-
-              <label className="inv-item-configure-label" style={{ marginTop: "0.9rem" }}>Qualities</label>
-              <div className="equip-quality-row">
-                {qualityIds.length > 0 && (
-                  <div className="equip-quality-badges">
-                    {qualityIds.map((qId) => {
-                      const q = allQualities.find((x) => x.qualityId === qId);
-                      return (
-                        <span key={qId} className="equip-quality-badge">
-                          {q?.name ?? `#${qId}`}
-                          <button className="equip-quality-badge-remove" onClick={() => toggleQuality(qId)} title="Remove">&times;</button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                <button
-                  className="equip-add-quality-btn"
-                  onClick={openQualityPicker}
-                  disabled={!selectedTypeId}
-                >
-                  + Qualities
-                </button>
-              </div>
-            </>
-          )}
-
-          {error && <p className="error" style={{ marginTop: "0.5rem" }}>{error}</p>}
-
-          <div className="inv-item-picker-footer">
-            <button
-              className="quality-accept-btn"
-              onClick={handleSubmit}
-              disabled={!selectedTypeId || busy}
-            >
-              {busy ? "Creating…" : `Equip ${slotLabel}`}
-            </button>
+          <h2>{headingLabel}</h2>
+          <div className="inv-item-picker-header-actions">
+            {!fixedCategory && category && (
+              <button
+                className="inv-item-picker-back"
+                onClick={() => { setCategory(null); setSelectedTypeId(null); setQualityIds([]); setName(""); }}
+              >
+                ← Back
+              </button>
+            )}
+            <button className="picker-modal-close" onClick={onClose}>&times;</button>
           </div>
         </div>
+
+        {!category && (
+          <div className="inv-item-picker-categories">
+            <button className="inv-item-picker-cat-card" onClick={() => setCategory("weapon")}>
+              <strong>Weapon</strong>
+              <span>Create a new weapon for the off hand</span>
+            </button>
+            <button className="inv-item-picker-cat-card" onClick={() => setCategory("shield")}>
+              <strong>Shield</strong>
+              <span>Create a new shield for the off hand</span>
+            </button>
+          </div>
+        )}
+
+        {category && (
+          <div className="inv-item-configure">
+            {typesLoading ? (
+              <p className="muted">Loading types...</p>
+            ) : (
+              <>
+                <label className="inv-item-configure-label">Type</label>
+                <div className="inv-type-grid">
+                  {types.map((t) => {
+                    const typeId = t[typeIdField];
+                    return (
+                      <button
+                        key={typeId}
+                        className={`inv-type-card${selectedTypeId === typeId ? " selected" : ""}`}
+                        onClick={() => setSelectedTypeId(typeId)}
+                      >
+                        <strong>{t.name}</strong>
+                        {t.description && <span>{t.description}</span>}
+                        {category === "shield" && t.defaultSunderMax != null && (
+                          <span className="muted">Sunder: {t.defaultSunderMax}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <label className="inv-item-configure-label" style={{ marginTop: "0.9rem" }}>
+                  Custom name <span className="muted">(optional)</span>
+                </label>
+                <input
+                  className="inv-item-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={selectedType?.name ?? `e.g. My ${category === "weapon" ? "Weapon" : category === "shield" ? "Shield" : "Armor"}`}
+                />
+
+                <label className="inv-item-configure-label" style={{ marginTop: "0.9rem" }}>Qualities</label>
+                <div className="equip-quality-row">
+                  {qualityIds.length > 0 && (
+                    <div className="equip-quality-badges">
+                      {qualityIds.map((qId) => {
+                        const q = allQualities.find((x) => x.qualityId === qId);
+                        return (
+                          <span key={qId} className="equip-quality-badge">
+                            {q?.name ?? `#${qId}`}
+                            <button className="equip-quality-badge-remove" onClick={() => toggleQuality(qId)} title="Remove">&times;</button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <button
+                    className="equip-add-quality-btn"
+                    onClick={openQualityPicker}
+                    disabled={!selectedTypeId}
+                  >
+                    + Qualities
+                  </button>
+                </div>
+              </>
+            )}
+
+            {error && <p className="error" style={{ marginTop: "0.5rem" }}>{error}</p>}
+
+            <div className="inv-item-picker-footer">
+              <button
+                className="quality-accept-btn"
+                onClick={handleSubmit}
+                disabled={!selectedTypeId || busy}
+              >
+                {busy ? "Creating…" : `Equip ${slotLabel}`}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {qualityPickerOpen && (
@@ -1758,15 +1990,21 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
   const [qualitiesLoading, setQualitiesLoading] = useState(false);
   const [activeTagFilters, setActiveTagFilters] = useState([]);
 
-  const selectedType = types.find((t) =>
-    category === "weapon" ? t.weaponTypeId === selectedTypeId : t.armorTypeId === selectedTypeId
-  );
+  const typeIdField =
+    category === "weapon" ? "weaponTypeId"
+    : category === "shield" ? "shieldTypeId"
+    : "armorTypeId";
+
+  const selectedType = types.find((t) => t[typeIdField] === selectedTypeId);
 
   const chooseCategory = (cat) => {
     setCategory(cat);
     if (cat === "generic") { setStep("configure"); return; }
     setTypesLoading(true);
-    const fn = cat === "weapon" ? getWeaponTypes : getArmorTypes;
+    const fn =
+      cat === "weapon" ? getWeaponTypes
+      : cat === "shield" ? getShieldTypes
+      : getArmorTypes;
     fn(token)
       .then((data) => setTypes(Array.isArray(data) ? data : []))
       .catch(() => setTypes([]))
@@ -1774,7 +2012,11 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
   };
 
   const openQualityPicker = () => {
-    const tag = selectedType?.tag?.includes("FOCUS") ? "Focus" : category === "weapon" ? "Weapon" : "Armor";
+    const tag =
+      category === "shield" ? "Shield"
+      : category === "armor" ? "Armor"
+      : selectedType?.tag?.includes("FOCUS") ? "Focus"
+      : "Weapon";
     setQualitiesLoading(true);
     getQualities(token, [tag])
       .then((q) => setAllQualities(Array.isArray(q) ? q : []))
@@ -1818,6 +2060,14 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
           qualityIds,
         });
         updateData = { weaponInstanceId: created.weaponInstanceId };
+      } else if (category === "shield") {
+        const created = await createShield(token, characterId, {
+          shieldTypeId: selectedTypeId,
+          name: name.trim() || selectedType?.name || "",
+          sunderMax: 0, // server applies type default
+          qualityIds,
+        });
+        updateData = { shieldInstanceId: created.shieldInstanceId };
       } else {
         const created = await createArmor(token, characterId, {
           armorTypeId: selectedTypeId,
@@ -1843,6 +2093,7 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
             {step === "configure" && category === "generic" && "Add Item"}
             {step === "configure" && category === "weapon" && "New Weapon"}
             {step === "configure" && category === "armor" && "New Armor"}
+            {step === "configure" && category === "shield" && "New Shield"}
           </h2>
           <div className="inv-item-picker-header-actions">
             {step === "configure" && (
@@ -1863,6 +2114,10 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
             <button className="inv-item-picker-cat-card" onClick={() => chooseCategory("armor")}>
               <strong>Armor</strong>
               <span>Create a new armor piece and place it here</span>
+            </button>
+            <button className="inv-item-picker-cat-card" onClick={() => chooseCategory("shield")}>
+              <strong>Shield</strong>
+              <span>Create a new shield and place it here</span>
             </button>
             <button className="inv-item-picker-cat-card" onClick={() => chooseCategory("generic")}>
               <strong>Generic Item</strong>
@@ -1885,7 +2140,7 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
           </div>
         )}
 
-        {step === "configure" && (category === "weapon" || category === "armor") && (
+        {step === "configure" && (category === "weapon" || category === "armor" || category === "shield") && (
           <div className="inv-item-configure">
             {typesLoading ? (
               <p className="muted">Loading types...</p>
@@ -1894,7 +2149,7 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
                 <label className="inv-item-configure-label">Type</label>
                 <div className="inv-type-grid">
                   {types.map((t) => {
-                    const typeId = category === "weapon" ? t.weaponTypeId : t.armorTypeId;
+                    const typeId = t[typeIdField];
                     return (
                       <button
                         key={typeId}
@@ -1903,6 +2158,9 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
                       >
                         <strong>{t.name}</strong>
                         {t.description && <span>{t.description}</span>}
+                        {category === "shield" && t.defaultSunderMax != null && (
+                          <span className="muted">Sunder: {t.defaultSunderMax}</span>
+                        )}
                       </button>
                     );
                   })}
@@ -1915,7 +2173,7 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
                   className="inv-item-input"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={selectedType?.name ?? `e.g. My ${category === "weapon" ? "Weapon" : "Armor"}`}
+                  placeholder={selectedType?.name ?? `e.g. My ${category === "weapon" ? "Weapon" : category === "shield" ? "Shield" : "Armor"}`}
                 />
 
                 <label className="inv-item-configure-label" style={{ marginTop: "0.9rem" }}>Qualities</label>

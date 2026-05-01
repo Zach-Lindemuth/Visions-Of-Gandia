@@ -18,7 +18,9 @@ import {
   addTechniqueToCharacter,
   createWeapon,
   createArmor,
+  createShield,
   equipMainHand,
+  equipOffHandShield,
   equipArmor,
   updateInventorySlot,
 } from "../../api/characterApi";
@@ -40,6 +42,9 @@ const INITIAL = {
   armorTypeId: null,
   armorName: "",
   armorQualityIds: [],
+  shieldTypeId: null,
+  shieldName: "",
+  shieldQualityIds: [],
 };
 
 export default function CreateCharacterWizard() {
@@ -107,12 +112,29 @@ export default function CreateCharacterWizard() {
         });
       }
 
-      // Auto-equip: first weapon → main hand, armor → armor slot, second weapon → inventory slot 1
+      // Create shield with qualities (server fills default sunderMax when sent as 0)
+      let createdShield = null;
+      if (data.shieldTypeId) {
+        createdShield = await createShield(auth.token, charId, {
+          name: data.shieldName || "Shield",
+          description: "",
+          shieldTypeId: data.shieldTypeId,
+          sunderMax: 0,
+          qualityIds: data.shieldQualityIds?.length > 0 ? data.shieldQualityIds : null,
+        });
+      }
+
+      // Auto-equip: first weapon → main hand, armor → armor slot.
+      // Shield (if created) → off-hand; second weapon → inventory slot 1.
+      // No shield: second weapon → inventory slot 1 (legacy behavior).
       if (createdWeapons[0]) {
         await equipMainHand(auth.token, charId, createdWeapons[0].weaponInstanceId);
       }
       if (createdArmor) {
         await equipArmor(auth.token, charId, createdArmor.armorInstanceId);
+      }
+      if (createdShield) {
+        await equipOffHandShield(auth.token, charId, createdShield.shieldInstanceId);
       }
       if (createdWeapons[1]) {
         await updateInventorySlot(auth.token, charId, 1, {

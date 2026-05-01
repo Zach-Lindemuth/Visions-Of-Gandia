@@ -7,6 +7,7 @@ import {
   getTechniques,
   getWeaponTypes,
   getArmorTypes,
+  getShieldTypes,
 } from "../../../api/characterApi";
 
 const ATTR_PAIRS = [
@@ -37,8 +38,9 @@ export default function Step7Review({ data, back, onSubmit, submitting }) {
       getTechniques(auth.token).catch(() => []),
       getWeaponTypes(auth.token).catch(() => []),
       getArmorTypes(auth.token).catch(() => []),
-    ]).then(([visions, talents, arcana, techniques, weaponTypes, armorTypes]) => {
-      setRef({ visions, talents, arcana, techniques, weaponTypes, armorTypes });
+      getShieldTypes(auth.token).catch(() => []),
+    ]).then(([visions, talents, arcana, techniques, weaponTypes, armorTypes, shieldTypes]) => {
+      setRef({ visions, talents, arcana, techniques, weaponTypes, armorTypes, shieldTypes });
     }).finally(() => setLoading(false));
   }, [auth.token]);
 
@@ -61,6 +63,7 @@ export default function Step7Review({ data, back, onSubmit, submitting }) {
     type: ref?.weaponTypes?.find((wt) => wt.weaponTypeId === w.weaponTypeId),
   }));
   const selectedArmorType = ref?.armorTypes?.find((at) => at.armorTypeId === data.armorTypeId);
+  const selectedShieldType = ref?.shieldTypes?.find((st) => st.shieldTypeId === data.shieldTypeId);
 
   if (loading) {
     return (
@@ -242,6 +245,23 @@ export default function Step7Review({ data, back, onSubmit, submitting }) {
                 <strong>{data.armorName || selectedArmorType?.name || "Armor"}</strong>
                 {data.armorName && selectedArmorType?.name && (
                   <span className="muted">{selectedArmorType.name}</span>
+                )}
+              </div>
+            )
+            : <p className="muted">None</p>
+          }
+        </div>
+        <div className="review-panel">
+          <h3>Shield</h3>
+          {data.shieldTypeId
+            ? (
+              <div className="review-equip-item">
+                <strong>{data.shieldName || selectedShieldType?.name || "Shield"}</strong>
+                {data.shieldName && selectedShieldType?.name && (
+                  <span className="muted">{selectedShieldType.name}</span>
+                )}
+                {selectedShieldType?.defaultSunderMax != null && (
+                  <span className="muted">Sunder: {selectedShieldType.defaultSunderMax}</span>
                 )}
               </div>
             )

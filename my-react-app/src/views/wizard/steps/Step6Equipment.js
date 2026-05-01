@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../../auth/AuthContext";
-import { getWeaponTypes, getArmorTypes, getQualities } from "../../../api/characterApi";
+import { getWeaponTypes, getArmorTypes, getShieldTypes, getQualities } from "../../../api/characterApi";
 import PickerModal from "../../../components/PickerModal";
 
 const WEAPON_LIMIT = 2;
 const ARMOR_LIMIT = 1;
+const SHIELD_LIMIT = 1;
 
 const WEAPON_PLACEHOLDERS = {
   "One-Handed Melee": [
@@ -75,8 +76,27 @@ const ARMOR_PLACEHOLDERS = {
   ],
 };
 
+const SHIELD_PLACEHOLDERS = {
+  "Light Shield": [
+    "e.g. Battered Buckler",
+    "e.g. Worn Round Shield",
+    "e.g. Old Wooden Targe",
+  ],
+  "Heavy Shield": [
+    "e.g. Dented Kite Shield",
+    "e.g. Cracked Heater Shield",
+    "e.g. Worn Iron Bulwark",
+  ],
+  "Tower Shield": [
+    "e.g. Scarred Tower Shield",
+    "e.g. Old Pavise",
+    "e.g. Battered Wall Shield",
+  ],
+};
+
 const FALLBACK_WEAPON = ["Old Blade", "Worn Armament", "Battered Steel", "Trusty Old Weapon"];
 const FALLBACK_ARMOR  = ["Worn Armor", "Old Protective Gear", "Battered Defense", "Trusty Old Guard"];
+const FALLBACK_SHIELD = ["Old Shield", "Worn Bulwark", "Battered Guard", "Trusty Old Shield"];
 
 function pickPlaceholder(map, fallback, typeName) {
   const list = map[typeName] ?? fallback;
@@ -87,14 +107,16 @@ export default function Step6Equipment({ data, update, next, back }) {
   const { auth } = useAuth();
   const [weaponTypes, setWeaponTypes] = useState([]);
   const [armorTypes, setArmorTypes] = useState([]);
+  const [shieldTypes, setShieldTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [shaking, setShaking] = useState(false);
   const [weaponPlaceholders, setWeaponPlaceholders] = useState([]);
   const [armorPlaceholder, setArmorPlaceholder] = useState("");
+  const [shieldPlaceholder, setShieldPlaceholder] = useState("");
   const shakeTimer = useRef(null);
 
   // Quality picker state
-  const [qualityPickerTarget, setQualityPickerTarget] = useState(null); // { type: 'weapon'|'armor', index?: number }
+  const [qualityPickerTarget, setQualityPickerTarget] = useState(null); // { type: 'weapon'|'armor'|'shield', index?: number }
   const [allQualities, setAllQualities] = useState([]);
   const [qualitiesLoading, setQualitiesLoading] = useState(false);
   const [activeTagFilters, setActiveTagFilters] = useState([]);
@@ -103,10 +125,12 @@ export default function Step6Equipment({ data, update, next, back }) {
     Promise.all([
       getWeaponTypes(auth.token).catch(() => []),
       getArmorTypes(auth.token).catch(() => []),
+      getShieldTypes(auth.token).catch(() => []),
     ])
-      .then(([w, a]) => {
+      .then(([w, a, s]) => {
         setWeaponTypes(Array.isArray(w) ? w : []);
         setArmorTypes(Array.isArray(a) ? a : []);
+        setShieldTypes(Array.isArray(s) ? s : []);
       })
       .finally(() => setLoading(false));
   }, [auth.token]);
@@ -121,6 +145,8 @@ export default function Step6Equipment({ data, update, next, back }) {
       const w = data.weapons[index];
       const wt = weaponTypes.find((t) => t.weaponTypeId === w.weaponTypeId);
       categoryTag = wt?.tag.includes("FOCUS") ? "Focus" : "Weapon";
+    } else if (type === "shield") {
+      categoryTag = "Shield";
     } else {
       categoryTag = "Armor";
     }
@@ -148,7 +174,6 @@ export default function Step6Equipment({ data, update, next, back }) {
     if (!qualityPickerTarget) return [];
     const tagSet = new Set();
     allQualities.forEach((q) => q.tags?.forEach((t) => tagSet.add(t)));
-    // Remove the broad category tags from filter options
     tagSet.delete("Weapon");
     tagSet.delete("Armor");
     tagSet.delete("Shield");
@@ -168,6 +193,9 @@ export default function Step6Equipment({ data, update, next, back }) {
     if (qualityPickerTarget.type === "weapon") {
       return data.weapons[qualityPickerTarget.index]?.qualityIds ?? [];
     }
+    if (qualityPickerTarget.type === "shield") {
+      return data.shieldQualityIds ?? [];
+    }
     return data.armorQualityIds ?? [];
   };
 
@@ -184,6 +212,12 @@ export default function Step6Equipment({ data, update, next, back }) {
         i === idx ? { ...w, qualityIds: updated } : w
       );
       update({ weapons });
+    } else if (qualityPickerTarget.type === "shield") {
+      const current = data.shieldQualityIds ?? [];
+      const updated = current.includes(qualityId)
+        ? current.filter((id) => id !== qualityId)
+        : [...current, qualityId];
+      update({ shieldQualityIds: updated });
     } else {
       const current = data.armorQualityIds ?? [];
       const updated = current.includes(qualityId)
@@ -225,8 +259,19 @@ export default function Step6Equipment({ data, update, next, back }) {
     update({ armorTypeId: null, armorName: "", armorQualityIds: [] });
   };
 
+  const selectShield = (st) => {
+    setShieldPlaceholder(pickPlaceholder(SHIELD_PLACEHOLDERS, FALLBACK_SHIELD, st.name));
+    update({ shieldTypeId: st.shieldTypeId, shieldName: "", shieldQualityIds: [] });
+  };
+
+  const removeShield = () => {
+    setShieldPlaceholder("");
+    update({ shieldTypeId: null, shieldName: "", shieldQualityIds: [] });
+  };
+
   const weaponsDone = data.weapons.length === WEAPON_LIMIT;
   const armorDone = !!data.armorTypeId;
+  // Shields are optional — they don't gate progression
   const allDone = weaponsDone && armorDone;
 
   const tryNext = () => {
@@ -246,11 +291,19 @@ export default function Step6Equipment({ data, update, next, back }) {
     });
     const normalizedArmorName =
       data.armorName.trim() || selectedArmorType?.name || data.armorName;
-    update({ weapons: normalizedWeapons, armorName: normalizedArmorName });
+    const normalizedShieldName = data.shieldTypeId
+      ? (data.shieldName.trim() || selectedShieldType?.name || data.shieldName)
+      : data.shieldName;
+    update({
+      weapons: normalizedWeapons,
+      armorName: normalizedArmorName,
+      shieldName: normalizedShieldName,
+    });
     next();
   };
 
   const selectedArmorType = armorTypes.find((at) => at.armorTypeId === data.armorTypeId);
+  const selectedShieldType = shieldTypes.find((st) => st.shieldTypeId === data.shieldTypeId);
 
   // Helper to look up quality name from the loaded list
   const qualityNameCache = useRef({});
@@ -273,11 +326,14 @@ export default function Step6Equipment({ data, update, next, back }) {
           <div className={`selection-badge ${armorDone ? "done" : ""} ${shaking && !armorDone ? "shake" : ""}`}>
             {armorDone ? 1 : 0} / {ARMOR_LIMIT} armor
           </div>
+          <div className={`selection-badge ${data.shieldTypeId ? "done" : ""}`}>
+            {data.shieldTypeId ? 1 : 0} / {SHIELD_LIMIT} shield <span className="muted">(optional)</span>
+          </div>
         </div>
       </div>
       <p className="wizard-hint">
         Choose <strong>2 weapons</strong> and <strong>1 armor</strong> to start with.
-        You can optionally add <strong>qualities</strong> to each piece.
+        Optionally add a <strong>shield</strong>. You can also add <strong>qualities</strong> to each piece.
       </p>
 
       {loading ? (
@@ -404,6 +460,69 @@ export default function Step6Equipment({ data, update, next, back }) {
               </div>
             ) : null}
           </div>
+
+          {/* ── Shield (optional) ── */}
+          <div className="equip-section">
+            <h3>Shield <span className="muted" style={{ fontWeight: "normal", fontSize: "0.85rem" }}>(optional)</span></h3>
+
+            {data.shieldTypeId && (
+              <div className="talent-selected-panel">
+                <div className="equip-selected-card">
+                  <div className="talent-selected-header">
+                    <strong>{selectedShieldType?.name ?? "Shield"}</strong>
+                    <button className="equip-remove-btn" onClick={removeShield} title="Remove">&times;</button>
+                  </div>
+                  {selectedShieldType?.defaultSunderMax != null && (
+                    <p className="muted" style={{ margin: "0.3rem 0 0", fontSize: "0.8rem" }}>
+                      Default Sunder: {selectedShieldType.defaultSunderMax}
+                    </p>
+                  )}
+                  <div className="form-group" style={{ marginBottom: 0, marginTop: "0.65rem" }}>
+                    <label>Custom name</label>
+                    <input
+                      value={data.shieldName}
+                      onChange={(e) => update({ shieldName: e.target.value })}
+                      placeholder={shieldPlaceholder}
+                    />
+                  </div>
+                  <div className="equip-quality-row">
+                    {(data.shieldQualityIds ?? []).length > 0 && (
+                      <div className="equip-quality-badges">
+                        {(data.shieldQualityIds ?? []).map((qId) => (
+                          <span key={qId} className="equip-quality-badge">
+                            {resolveQualityName(qId)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      className="equip-add-quality-btn"
+                      onClick={() => openQualityPicker("shield")}
+                    >
+                      + Qualities
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {shieldTypes.length === 0 ? (
+              <p className="muted">No shield types in the database yet.</p>
+            ) : !data.shieldTypeId ? (
+              <div className="picker-list">
+                {shieldTypes.map((st) => (
+                  <button
+                    key={st.shieldTypeId}
+                    className="picker-card"
+                    onClick={() => selectShield(st)}
+                  >
+                    <strong>{st.name}</strong>
+                    <p className="muted">Sunder: {st.defaultSunderMax}</p>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
 
@@ -429,8 +548,10 @@ export default function Step6Equipment({ data, update, next, back }) {
           onClose={closeQualityPicker}
           weaponTypes={weaponTypes}
           armorTypes={armorTypes}
+          shieldTypes={shieldTypes}
           weapons={data.weapons}
           armorTypeId={data.armorTypeId}
+          shieldTypeId={data.shieldTypeId}
         />
       )}
     </div>
@@ -449,14 +570,19 @@ function QualityPickerModal({
   onClose,
   weaponTypes,
   armorTypes,
+  shieldTypes,
   weapons,
   armorTypeId,
+  shieldTypeId,
 }) {
   let title = "Select Qualities";
   if (target.type === "weapon") {
     const w = weapons[target.index];
     const wt = weaponTypes.find((t) => t.weaponTypeId === w?.weaponTypeId);
     title = `${wt?.name ?? "Weapon"} Qualities`;
+  } else if (target.type === "shield") {
+    const st = shieldTypes.find((t) => t.shieldTypeId === shieldTypeId);
+    title = `${st?.name ?? "Shield"} Qualities`;
   } else {
     const at = armorTypes.find((t) => t.armorTypeId === armorTypeId);
     title = `${at?.name ?? "Armor"} Qualities`;
