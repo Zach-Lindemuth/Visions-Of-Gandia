@@ -81,6 +81,16 @@ export default function CharacterSheet() {
   const [error, setError] = useState(null);
   const [pickerModal, setPickerModal] = useState(null);
   const [vitalPanel, setVitalPanel] = useState(null); // 'life' | 'energy' | 'items' | 'gold' | null
+  // TEMP: vital management UI variant toggle
+  const [vmpVariant, setVmpVariant] = useState(() => {
+    return localStorage.getItem("vmpVariant") || "striped";
+  });
+  const cycleVmpVariant = () => {
+    const order = ["striped", "pips", "slider", "vial"];
+    const next = order[(order.indexOf(vmpVariant) + 1) % order.length];
+    setVmpVariant(next);
+    localStorage.setItem("vmpVariant", next);
+  };
   const [showLevelPanel, setShowLevelPanel] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1424,24 +1434,41 @@ export default function CharacterSheet() {
             : vitalPanel === "energy" ? character.energyMax ?? 0
             : character.itemPointsMax ?? 3
           }
-          onApply={(delta) => {
-            const field =
-              vitalPanel === "life" ? "healthCurrent"
-              : vitalPanel === "energy" ? "energyCurrent"
-              : vitalPanel === "items" ? "itemPointsCurrent"
-              : "gold";
-            updateStat(field, delta);
-          }}
-          onChangeMax={(delta) => {
-            const field =
-              vitalPanel === "life" ? "healthMax"
-              : vitalPanel === "energy" ? "energyMax"
-              : "itemPointsMax";
-            updateStat(field, delta);
+          onApply={({ currentDelta, maxDelta }) => {
+            const fields =
+              vitalPanel === "life"   ? { current: "healthCurrent",     max: "healthMax" }
+              : vitalPanel === "energy" ? { current: "energyCurrent",   max: "energyMax" }
+              : vitalPanel === "items"  ? { current: "itemPointsCurrent", max: "itemPointsMax" }
+              :                           { current: "gold",             max: null };
+            const patch = {};
+            const oldCur = character[fields.current] ?? 0;
+            let cap = Infinity;
+            if (fields.max && maxDelta !== 0) {
+              const newMax = Math.max(0, (character[fields.max] ?? 0) + maxDelta);
+              patch[fields.max] = newMax;
+              cap = newMax;
+            } else if (fields.max) {
+              cap = character[fields.max] ?? 0;
+            }
+            if (currentDelta !== 0) {
+              patch[fields.current] = Math.max(0, Math.min(cap, oldCur + currentDelta));
+            }
+            if (Object.keys(patch).length > 0) updateStats(patch);
           }}
           onClose={() => setVitalPanel(null)}
+          variant={vitalPanel === "items" ? "pips" : vmpVariant}
         />
       )}
+
+      {/* TEMP: cycle through vital UI variants for evaluation */}
+      <button
+        type="button"
+        className="vmp-variant-toggle"
+        onClick={cycleVmpVariant}
+        title="Cycle vital UI variant"
+      >
+        Vital UI: <strong>{vmpVariant}</strong>
+      </button>
     </div>
   );
 }

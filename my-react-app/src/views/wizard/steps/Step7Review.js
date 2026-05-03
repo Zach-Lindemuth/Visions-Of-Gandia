@@ -25,10 +25,37 @@ const LABELS = {
   willpower: "Willpower",
 };
 
-export default function Step7Review({ data, back, onSubmit, submitting }) {
+export default function Step7Review({
+  data,
+  back,
+  onSubmit,
+  submitting,
+  canSubmit = true,
+  stepValidity = [],
+  stepLabels = [],
+  goTo,
+}) {
   const { auth } = useAuth();
   const [ref, setRef] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const incompleteSteps = stepValidity
+    .map((valid, i) => (!valid && i !== 7 ? i : null))
+    .filter((i) => i !== null);
+
+  const handleCreate = () => {
+    if (!canSubmit) {
+      setConfirmOpen(true);
+      return;
+    }
+    onSubmit();
+  };
+
+  const handleConfirmCreate = () => {
+    setConfirmOpen(false);
+    onSubmit();
+  };
 
   useEffect(() => {
     Promise.all([
@@ -270,12 +297,64 @@ export default function Step7Review({ data, back, onSubmit, submitting }) {
         </div>
       </div>
 
+      {!canSubmit && (
+        <div className="review-incomplete">
+          <p className="review-incomplete-title">
+            The following sections are still incomplete:
+          </p>
+          <ul className="review-incomplete-list">
+            {incompleteSteps.map((i) => (
+              <li key={i}>
+                <button
+                  type="button"
+                  className="review-incomplete-link"
+                  onClick={() => goTo && goTo(i)}
+                >
+                  {stepLabels[i]}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="wizard-nav">
         <button className="btn-secondary" onClick={back} disabled={submitting}>← Back</button>
-        <button onClick={onSubmit} disabled={submitting}>
+        <button onClick={handleCreate} disabled={submitting}>
           {submitting ? "Creating..." : "Create Character"}
         </button>
       </div>
+
+      {confirmOpen && (
+        <div
+          className="prof-modal-overlay"
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div className="prof-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="prof-modal-hint">
+              Are you sure? The following sections are still incomplete:
+            </p>
+            <ul className="review-incomplete-list" style={{ justifyContent: "center", marginBottom: "0.75rem" }}>
+              {incompleteSteps.map((i) => (
+                <li key={i}>
+                  <strong>{stepLabels[i]}</strong>
+                </li>
+              ))}
+            </ul>
+            <div className="prof-modal-choices">
+              <button
+                className="btn-secondary"
+                onClick={() => setConfirmOpen(false)}
+              >
+                Go Back
+              </button>
+              <button onClick={handleConfirmCreate}>
+                Create Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

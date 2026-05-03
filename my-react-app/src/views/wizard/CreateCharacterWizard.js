@@ -27,6 +27,19 @@ import {
 
 const STEPS = ["Basics", "Origin", "Vision", "Attributes", "Talents", "Powers", "Equipment", "Review"];
 
+// Per-step completion checks. Vision (index 2) and Review (index 7) are always
+// considered complete since Vision is optional and Review has no inputs.
+const STEP_VALIDATORS = [
+  (d) => d.name.trim().length > 0 && d.nickname.trim().length > 0,
+  (d) => d.descriptor.trim().length > 0 && d.profession.trim().length > 0,
+  () => true,
+  (d) => Object.values(d.attributes).reduce((s, v) => s + v, 0) === 14,
+  (d) => d.talentIds.length === 2,
+  (d) => d.arcanaIds.length + d.techniqueIds.length === 2,
+  (d) => d.weapons.length === 2 && d.armorTypeId != null,
+  () => true,
+];
+
 const INITIAL = {
   name: "",
   nickname: "",
@@ -58,6 +71,7 @@ export default function CreateCharacterWizard() {
   const update = (partial) => setData((prev) => ({ ...prev, ...partial }));
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
+  const goTo = (i) => setStep(Math.max(0, Math.min(i, STEPS.length - 1)));
 
   const submit = async () => {
     setSubmitting(true);
@@ -149,21 +163,32 @@ export default function CreateCharacterWizard() {
     }
   };
 
+  const stepValidity = STEP_VALIDATORS.map((fn) => fn(data));
+  const allRequiredValid = stepValidity.every(Boolean);
+
   const stepProps = { data, update, next, back };
 
   return (
     <div className="wizard-container">
       {/* Progress bar */}
       <div className="wizard-progress">
-        {STEPS.map((label, i) => (
-          <div
-            key={i}
-            className={`wizard-dot ${i === step ? "active" : ""} ${i < step ? "done" : ""}`}
-          >
-            <div className="wizard-dot-circle">{i < step ? "✓" : i + 1}</div>
-            <span className="wizard-dot-label">{label}</span>
-          </div>
-        ))}
+        {STEPS.map((label, i) => {
+          const isValid = stepValidity[i];
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => goTo(i)}
+              disabled={submitting}
+              className={`wizard-dot ${i === step ? "active" : ""} ${isValid ? "done" : ""}`}
+              aria-label={`Go to step ${i + 1}: ${label}`}
+              aria-current={i === step ? "step" : undefined}
+            >
+              <div className="wizard-dot-circle">{isValid ? "✓" : i + 1}</div>
+              <span className="wizard-dot-label">{label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Step content */}
@@ -176,7 +201,17 @@ export default function CreateCharacterWizard() {
         {step === 4 && <Step5Talents {...stepProps} />}
         {step === 5 && <Step6Powers {...stepProps} />}
         {step === 6 && <Step7Equipment {...stepProps} />}
-        {step === 7 && <Step8Review {...stepProps} onSubmit={submit} submitting={submitting} />}
+        {step === 7 && (
+          <Step8Review
+            {...stepProps}
+            onSubmit={submit}
+            submitting={submitting}
+            canSubmit={allRequiredValid}
+            stepValidity={stepValidity}
+            stepLabels={STEPS}
+            goTo={goTo}
+          />
+        )}
       </div>
     </div>
   );
