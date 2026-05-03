@@ -1462,15 +1462,6 @@ export default function CharacterSheet() {
         />
       )}
 
-      {/* TEMP: cycle through vital UI variants for evaluation */}
-      <button
-        type="button"
-        className="vmp-variant-toggle"
-        onClick={cycleVmpVariant}
-        title="Cycle vital UI variant"
-      >
-        Vital UI: <strong>{vmpVariant}</strong>
-      </button>
     </div>
   );
 }
