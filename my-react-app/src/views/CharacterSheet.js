@@ -168,9 +168,11 @@ export default function CharacterSheet() {
     }
   }, [auth.token, id, isRoomCharacter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync vitals from room updates (e.g. room owner edits another's vitals)
+  // Sync vitals from room updates (e.g. room owner edits another's vitals).
+  // Runs for any character that has a card in the room — including the local
+  // user's own character when the room owner adjusts their vitals.
   useEffect(() => {
-    if (!isRoomCharacter || !room) return;
+    if (!room) return;
     const card = room.members.find((m) => m.characterId === parseInt(id));
     if (card && character) {
       setCharacter((prev) =>
