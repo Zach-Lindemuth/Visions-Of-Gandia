@@ -120,6 +120,14 @@ export async function addVisionToCharacter(token, characterId, visionId) {
   return handleResponse(res);
 }
 
+export async function removeVisionFromCharacter(token, characterId, visionId) {
+  const res = await fetch(`${API_BASE}/characters/${characterId}/visions/${visionId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
 // ── Remove associations ─────────────────────────────────
 export async function removeTalentFromCharacter(token, characterId, talentId) {
   const res = await fetch(`${API_BASE}/characters/${characterId}/talents/${talentId}`, {

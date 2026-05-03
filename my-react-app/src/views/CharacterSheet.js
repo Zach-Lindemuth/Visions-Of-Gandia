@@ -6,6 +6,8 @@ import JoinRoomModal from "../components/JoinRoomModal";
 import { getRoomCharacter } from "../api/roomApi";
 import PickerModal from "../components/PickerModal";
 import VitalManagementPanel from "../components/VitalManagementPanel";
+import OriginPickerModal from "../components/OriginPickerModal";
+import VisionPickerModal from "../components/VisionPickerModal";
 import {
   getCharacterById,
   getCharacterEquipment,
@@ -29,6 +31,9 @@ import {
   removeTalentFromCharacter,
   removeArcanaFromCharacter,
   removeTechniqueFromCharacter,
+  setCharacterOrigin,
+  addVisionToCharacter,
+  removeVisionFromCharacter,
   updateCharacter,
   updateInventorySlot,
   clearInventorySlot,
@@ -76,6 +81,8 @@ export default function CharacterSheet() {
   const [error, setError] = useState(null);
   const [pickerModal, setPickerModal] = useState(null);
   const [vitalPanel, setVitalPanel] = useState(null); // 'life' | 'energy' | 'items' | 'gold' | null
+  const [showLevelPanel, setShowLevelPanel] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showRoomModal, setShowRoomModal] = useState(false);
   // Tracks the timestamp of the last mutation WE submitted, so we can ignore
@@ -100,6 +107,7 @@ export default function CharacterSheet() {
   // { source: 'equipped'|'inventory', slot?: 'mainHand'|'offHand'|'armor', slotIndex?: number, itemType: 'weapon'|'armor'|'shield'|'generic', item: object }
   const [dragOverTarget, setDragOverTarget] = useState(null); // 'mainHand'|'offHand'|'armor'|`inv-${n}`
   const [inventoryUnlocked, setInventoryUnlocked] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
   const [confirmDeleteEquip, setConfirmDeleteEquip] = useState(null); // { slot, name }
 
   // Equipment quality picker state
@@ -326,6 +334,57 @@ export default function CharacterSheet() {
     } catch (err) {
       setCharacter((prev) => ({ ...prev, ...rollback }));
       setError(err.message);
+    }
+  };
+
+  // Saves identity/origin/vision changes from the Edit Profile modal.
+  // Splits across three endpoints (PATCH for name/nickname/imageUrl, POST /origin,
+  // POST/DELETE /visions) and reflects each successful piece into local state.
+  const handleSaveProfile = async ({ name, nickname, imageUrl, descriptor, profession, vision }) => {
+    setBusy(true);
+    try {
+      const profilePatch = {};
+      if (name !== character.name) profilePatch.name = name;
+      if ((nickname ?? "") !== (character.nickname ?? "")) profilePatch.nickname = nickname;
+      if ((imageUrl ?? "") !== (character.imageUrl ?? "")) profilePatch.imageUrl = imageUrl;
+
+      const originChanged =
+        (descriptor ?? "") !== (character.descriptor ?? "") ||
+        (profession ?? "") !== (character.profession ?? "");
+
+      const currentVisionId = character.vision?.visionId ?? null;
+      const newVisionId = vision?.visionId ?? null;
+      const visionChanged = newVisionId !== currentVisionId;
+
+      if (Object.keys(profilePatch).length > 0) {
+        await updateCharacter(auth.token, id, profilePatch);
+      }
+      if (originChanged) {
+        await setCharacterOrigin(auth.token, id, { descriptor, profession });
+      }
+      if (visionChanged) {
+        if (newVisionId == null) {
+          await removeVisionFromCharacter(auth.token, id, currentVisionId);
+        } else {
+          await addVisionToCharacter(auth.token, id, newVisionId);
+        }
+      }
+
+      lastLocalMutationRef.current = Date.now();
+      setCharacter((prev) => ({
+        ...prev,
+        name,
+        nickname,
+        imageUrl,
+        descriptor,
+        profession,
+        vision: vision ?? null,
+      }));
+      setShowEditProfile(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -587,7 +646,7 @@ export default function CharacterSheet() {
   };
 
   const handleLockInventory = async () => {
-    setBusy(true);
+    setSavingOrder(true);
     try {
       const slots = inventory.slots.map((s) => ({
         slotIndex: s.slotIndex,
@@ -601,7 +660,7 @@ export default function CharacterSheet() {
     } catch (err) {
       setError(err.message);
     } finally {
-      setBusy(false);
+      setSavingOrder(false);
     }
   };
 
@@ -858,8 +917,19 @@ export default function CharacterSheet() {
       <div className="sheet-header">
         <div className="sheet-identity">
           <h1 className="sheet-name">{character.name}</h1>
-          <p className="sheet-title">{character.nickname}</p>
-          <p className="sheet-meta muted">Level 1 · {character.experience ?? 0} XP</p>
+          {character.nickname && <p className="sheet-title">{character.nickname}</p>}
+          {(character.descriptor || character.profession) && (
+            <p className="sheet-origin muted">
+              {[character.descriptor, character.profession].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          <p
+            className={`sheet-meta muted ${sheetReadOnly ? "" : "sheet-meta-clickable"}`}
+            onClick={sheetReadOnly ? undefined : () => setShowLevelPanel(true)}
+            title={sheetReadOnly ? undefined : "Manage level & XP"}
+          >
+            Level {character.level ?? 1} · {character.experience ?? 0} XP
+          </p>
           {isRoomCharacter && (
             <span className="sheet-readonly-badge">
               {isOwner ? "Room Owner" : "Read Only"}
@@ -867,6 +937,15 @@ export default function CharacterSheet() {
           )}
         </div>
         <div className="sheet-header-actions">
+          {!sheetReadOnly && (
+            <button
+              className="btn-secondary sheet-edit-btn"
+              onClick={() => setShowEditProfile(true)}
+              title="Edit profile"
+            >
+              ✎ Edit
+            </button>
+          )}
         </div>
         {character.imageUrl && (
           <img src={character.imageUrl} alt={character.name} className="sheet-avatar" />
@@ -979,26 +1058,13 @@ export default function CharacterSheet() {
             </div>
           </div>
 
-          {/* Origin & Vision */}
-          {(character.origin || character.vision) && (
-            <div className="sheet-section-row">
-              {character.origin && (
-                <div className="review-panel">
-                  <h3>Origin</h3>
-                  <p className="card-title">{character.origin.name}</p>
-                  {character.origin.description && (
-                    <p className="card-body">{character.origin.description}</p>
-                  )}
-                </div>
-              )}
-              {character.vision && (
-                <div className="review-panel">
-                  <h3>Vision</h3>
-                  <p className="card-title">{character.vision.name}</p>
-                  {character.vision.description && (
-                    <p className="card-body">{character.vision.description}</p>
-                  )}
-                </div>
+          {/* Vision */}
+          {character.vision && (
+            <div className="review-panel">
+              <h3>Vision</h3>
+              <p className="card-title">{character.vision.name}</p>
+              {character.vision.description && (
+                <p className="card-body">{character.vision.description}</p>
               )}
             </div>
           )}
@@ -1226,7 +1292,7 @@ export default function CharacterSheet() {
           <div className="inv-panel-header">
             <h3>Inventory</h3>
             {inventoryUnlocked ? (
-              <button className="inv-lock-btn" onClick={handleLockInventory} disabled={busy}>
+              <button className="inv-lock-btn" onClick={handleLockInventory} disabled={savingOrder}>
                 Save Order
               </button>
             ) : (
@@ -1309,6 +1375,38 @@ export default function CharacterSheet() {
           token={auth.token}
           onSuccess={handleEquipSlotCreateSuccess}
           onClose={() => setCreateEquipSlot(null)}
+        />
+      )}
+
+      {showLevelPanel && (
+        <LevelXpPanel
+          level={character.level ?? 1}
+          experience={character.experience ?? 0}
+          onApply={async ({ levelDelta, xpDelta }) => {
+            const patch = {};
+            if (levelDelta) patch.level = Math.max(1, (character.level ?? 1) + levelDelta);
+            if (xpDelta) patch.experience = Math.max(0, (character.experience ?? 0) + xpDelta);
+            if (Object.keys(patch).length === 0) return;
+            const rollback = { level: character.level, experience: character.experience };
+            setCharacter((prev) => ({ ...prev, ...patch }));
+            lastLocalMutationRef.current = Date.now();
+            try {
+              await updateCharacter(auth.token, id, patch);
+            } catch (err) {
+              setCharacter((prev) => ({ ...prev, ...rollback }));
+              setError(err.message);
+            }
+          }}
+          onClose={() => setShowLevelPanel(false)}
+        />
+      )}
+
+      {showEditProfile && (
+        <EditProfileModal
+          character={character}
+          busy={busy}
+          onSave={handleSaveProfile}
+          onClose={() => setShowEditProfile(false)}
         />
       )}
 
@@ -2278,6 +2376,233 @@ function InventoryItemPickerModal({ slotIndex, characterId, token, onSuccess, on
           }
         />
       )}
+    </div>
+  );
+}
+
+// ── Level / XP Panel ─────────────────────────────────────
+function LevelXpPanel({ level, experience, onApply, onClose }) {
+  const [levelDelta, setLevelDelta] = useState(0);
+  const [xpAdd, setXpAdd] = useState("");
+  const [xpSub, setXpSub] = useState("");
+
+  const xpAddVal = parseInt(xpAdd, 10) || 0;
+  const xpSubVal = parseInt(xpSub, 10) || 0;
+  const xpDelta = xpAddVal - xpSubVal;
+  const previewLevel = Math.max(1, level + levelDelta);
+  const previewXp = Math.max(0, experience + xpDelta);
+  const changed = previewLevel !== level || previewXp !== experience;
+
+  const apply = async () => {
+    if (!changed) return;
+    await onApply({ levelDelta: previewLevel - level, xpDelta: previewXp - experience });
+    onClose();
+  };
+
+  const handleKeyDown = (e) => { if (e.key === "Enter") apply(); };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="vmp-panel level-xp-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="vmp-header level-xp-header">
+          <h3>XP</h3>
+          <button className="picker-modal-close" onClick={onClose}>&times;</button>
+        </div>
+
+        <div className="vmp-body">
+          <div className="vmp-current-display">
+            <span className="vmp-current-value" style={{ color: "var(--primary-color)" }}>
+              Lv {previewLevel}
+            </span>
+            <span className="vmp-slash">·</span>
+            <span className="vmp-max-value">{previewXp} XP</span>
+          </div>
+
+          <div className="vmp-max-section">
+            <span className="vmp-max-label">Level</span>
+            <div className="vmp-max-controls">
+              <button
+                className="vital-btn"
+                onClick={() => setLevelDelta((d) => (level + d > 1 ? d - 1 : d))}
+                disabled={previewLevel <= 1}
+              >−</button>
+              <span className="vmp-max-val">{previewLevel}</span>
+              <button className="vital-btn" onClick={() => setLevelDelta((d) => d + 1)}>+</button>
+            </div>
+          </div>
+
+          <div className="vmp-inputs">
+            <div className="vmp-input-group vmp-heal">
+              <label>Add XP</label>
+              <input
+                type="number"
+                min="0"
+                value={xpAdd}
+                onChange={(e) => setXpAdd(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="0"
+              />
+            </div>
+            <div className="vmp-input-group vmp-damage">
+              <label>Subtract XP</label>
+              <input
+                type="number"
+                min="0"
+                value={xpSub}
+                onChange={(e) => setXpSub(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          {changed && (
+            <div className="vmp-preview">
+              New: <strong>Lv {previewLevel} · {previewXp} XP</strong>
+            </div>
+          )}
+
+          <button className="btn-primary vmp-apply-btn" onClick={apply} disabled={!changed}>
+            Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Profile Modal ───────────────────────────────────
+function EditProfileModal({ character, busy, onSave, onClose }) {
+  const [name, setName] = useState(character.name ?? "");
+  const [nickname, setNickname] = useState(character.nickname ?? "");
+  const [imageUrl, setImageUrl] = useState(character.imageUrl ?? "");
+  const [descriptor, setDescriptor] = useState(character.descriptor ?? "");
+  const [profession, setProfession] = useState(character.profession ?? "");
+  const [vision, setVision] = useState(character.vision ?? null);
+  const [showOriginPicker, setShowOriginPicker] = useState(false);
+  const [showVisionPicker, setShowVisionPicker] = useState(false);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave({
+      name: name.trim(),
+      nickname: nickname.trim() || null,
+      imageUrl: imageUrl.trim(),
+      descriptor: descriptor.trim() || null,
+      profession: profession.trim() || null,
+      vision,
+    });
+  };
+
+  const originLabel = [descriptor, profession].filter(Boolean).join(" · ");
+
+  return (
+    <div className="modal-overlay" onClick={busy ? undefined : onClose}>
+      <div className="modal-box edit-profile-modal" onClick={(e) => e.stopPropagation()}>
+        <h2 className="modal-title">Edit Profile</h2>
+        <form onSubmit={submit} className="edit-profile-form">
+          <label className="edit-profile-label">
+            Name
+            <input
+              className="inv-item-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoFocus
+            />
+          </label>
+          <label className="edit-profile-label">
+            Title <span className="muted">(nickname)</span>
+            <input
+              className="inv-item-input"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+            />
+          </label>
+          <label className="edit-profile-label">
+            Photo URL
+            <input
+              className="inv-item-input"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://…"
+            />
+          </label>
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt="preview"
+              className="edit-profile-preview"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+              onLoad={(e) => { e.currentTarget.style.display = "block"; }}
+            />
+          )}
+
+          <div className="edit-profile-label">
+            Origin
+            <button
+              type="button"
+              className="edit-profile-picker-row"
+              onClick={() => setShowOriginPicker(true)}
+            >
+              <span className={originLabel ? "" : "muted"}>
+                {originLabel || "Choose origin…"}
+              </span>
+              <span className="edit-profile-picker-chevron">›</span>
+            </button>
+          </div>
+
+          <div className="edit-profile-label">
+            Vision
+            <button
+              type="button"
+              className="edit-profile-picker-row"
+              onClick={() => setShowVisionPicker(true)}
+            >
+              <span className={vision ? "" : "muted"}>
+                {vision?.name || "Choose vision…"}
+              </span>
+              <span className="edit-profile-picker-chevron">›</span>
+            </button>
+          </div>
+
+          <div className="edit-profile-actions">
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={busy || !name.trim()}>
+              {busy ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+        <button className="modal-close-btn" onClick={onClose} disabled={busy}>✕</button>
+
+        {showOriginPicker && (
+          <OriginPickerModal
+            initialDescriptor={descriptor}
+            initialProfession={profession}
+            onSelect={({ descriptor: d, profession: p }) => {
+              setDescriptor(d);
+              setProfession(p);
+              setShowOriginPicker(false);
+            }}
+            onClose={() => setShowOriginPicker(false)}
+          />
+        )}
+        {showVisionPicker && (
+          <VisionPickerModal
+            initialVisionId={vision?.visionId ?? null}
+            onSelect={(v) => {
+              setVision(v);
+              setShowVisionPicker(false);
+            }}
+            onClear={() => {
+              setVision(null);
+              setShowVisionPicker(false);
+            }}
+            onClose={() => setShowVisionPicker(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
